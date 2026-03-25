@@ -123,7 +123,7 @@ function seedDefaults() {
     },
     {
       field_key: "visit_time",
-      label: "访客访问时间",
+      label: "来访时间",
       type: "text",
       required: 1,
       options_json: null,
@@ -201,7 +201,7 @@ function ensureVisitTimeField() {
 
   if (existing) {
     db.prepare(
-      "UPDATE form_fields SET active = 1, required = 1, type = 'text', label = '访客访问时间', updated_at = ? WHERE id = ?"
+      "UPDATE form_fields SET active = 1, required = 1, type = 'text', label = '来访时间', updated_at = ? WHERE id = ?"
     ).run(now, existing.id);
     return;
   }
@@ -210,7 +210,7 @@ function ensureVisitTimeField() {
   db.prepare(
     `INSERT INTO form_fields (field_key, label, type, required, options_json, sort_order, active, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
-  ).run("visit_time", "访客访问时间", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
+  ).run("visit_time", "来访时间", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
 }
 
 export default db;

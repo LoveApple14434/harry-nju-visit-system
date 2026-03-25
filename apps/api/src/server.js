@@ -401,7 +401,7 @@ app.put("/api/admin/fields/:id", (req, res) => {
   }
   if (isFixedFieldByKey(current.field_key)) {
     if (!isFixedFieldByKey(body.key) || body.required !== true || body.type !== "text") {
-      return error(res, "访客访问时间为固定必填项，不允许修改 key/类型/必填属性");
+      return error(res, "来访时间为固定必填项，不允许修改 key/类型/必填属性");
     }
   }
 
@@ -474,7 +474,7 @@ app.delete("/api/admin/fields/:id", (req, res) => {
     return error(res, "字段不存在", 404);
   }
   if (isFixedFieldByKey(field.field_key)) {
-    return error(res, "访客访问时间为固定项，不允许删除");
+    return error(res, "来访时间为固定项，不允许删除");
   }
   const result = db
     .prepare("UPDATE form_fields SET active = 0, updated_at = ? WHERE id = ? AND active = 1")
@@ -501,7 +501,7 @@ app.get("/api/admin/applications", (req, res) => {
   const conditions = [];
   const params = [];
   if (!visitTimeField) {
-    return error(res, "系统缺少访客访问时间字段");
+    return error(res, "系统缺少来访时间字段");
   }
   if (fromDate) {
     conditions.push(
