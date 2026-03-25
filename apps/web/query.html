@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>预约查询</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>预约状态查询 <span class="tag">Demo</span></h1>
+      <p id="debugVersion" class="version-debug">版本: 加载中...</p>
+
+      <div class="card">
+        <div class="row two query-row">
+          <div>
+            <label for="phoneInput">手机号码</label>
+            <input id="phoneInput" type="text" placeholder="请输入预约时填写的手机号码" maxlength="32" />
+          </div>
+          <div class="actions query-actions">
+            <button id="queryBtn" type="button">查询预约状态</button>
+          </div>
+        </div>
+        <p id="queryMsg"></p>
+      </div>
+
+      <div class="card" style="margin-top: 12px">
+        <h2>查询结果</h2>
+        <p id="querySummary" class="hint">请输入手机号后查询。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>申请编号</th>
+                <th>访客姓名</th>
+                <th>来访时间</th>
+                <th>来访单位</th>
+                <th>状态</th>
+                <th>提交时间</th>
+                <th>审批时间</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody id="resultRows">
+              <tr>
+                <td colspan="8" class="hint">暂无数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="actions" style="margin-top: 12px">
+        <a class="btn-link" href="./visitor">前往访客申请</a>
+        <a class="btn-link" href="./notice">查看来访须知</a>
+      </div>
+    </div>
+
+    <script type="module" src="./query.js"></script>
+  </body>
+</html>

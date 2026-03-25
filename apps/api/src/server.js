@@ -216,6 +216,10 @@ function getVisitTimeField() {
   return db.prepare("SELECT id, field_key, label FROM form_fields WHERE active = 1 AND field_key = 'visit_time' LIMIT 1").get();
 }
 
+function getFieldByKey(key) {
+  return db.prepare("SELECT id, field_key, label FROM form_fields WHERE field_key = ? ORDER BY id ASC LIMIT 1").get(key);
+}
+
 function extractCompanyName(values, fieldMap) {
   const preferred = values.find((v) => {
     const field = fieldMap.get(v.field_id);
@@ -299,6 +303,10 @@ app.get(`${BASE_PATH}/notice`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/notice.html"));
 });
 
+app.get(`${BASE_PATH}/query`, (_req, res) => {
+  res.sendFile(path.resolve("apps/web/query.html"));
+});
+
 app.use(`${BASE_PATH}/uploads`, express.static(path.resolve("uploads")));
 app.use(BASE_PATH || "/", express.static(path.resolve("apps/web")));
 
@@ -313,6 +321,65 @@ app.get(`${BASE_PATH}/api/public/version`, (_req, res) => {
 app.get(`${BASE_PATH}/api/public/notice`, (_req, res) => {
   const notice = getNoticeContent();
   res.json({ success: true, content: notice.content, updatedAt: notice.updatedAt });
+});
+
+app.get(`${BASE_PATH}/api/public/applications/query`, (req, res) => {
+  const phone = String(req.query.phone || "").trim();
+  if (!phone) {
+    return error(res, "请输入手机号码");
+  }
+
+  const phoneField = getFieldByKey("phone_number");
+  if (!phoneField) {
+    return error(res, "系统缺少手机号码字段", 500);
+  }
+
+  const visitTimeField = getFieldByKey("visit_time");
+  const visitorNameField = getFieldByKey("visitor_name");
+  const companyField = getFieldByKey("company_name");
+
+  const items = db
+    .prepare(
+      `SELECT
+         a.id,
+         a.status,
+         a.created_at,
+         a.decision_at,
+         a.reject_reason_code,
+         a.reject_reason_text,
+         (SELECT avn.value_text FROM application_values avn WHERE avn.application_id = a.id AND avn.field_id = ? LIMIT 1) AS visitor_name,
+         (SELECT avt.value_text FROM application_values avt WHERE avt.application_id = a.id AND avt.field_id = ? LIMIT 1) AS visit_time,
+         (SELECT avc.value_text FROM application_values avc WHERE avc.application_id = a.id AND avc.field_id = ? LIMIT 1) AS company_name
+       FROM applications a
+       WHERE EXISTS (
+         SELECT 1 FROM application_values ap
+         WHERE ap.application_id = a.id
+         AND ap.field_id = ?
+         AND TRIM(ap.value_text) = ?
+       )
+       ORDER BY a.id DESC
+       LIMIT 50`
+    )
+    .all(
+      visitorNameField ? visitorNameField.id : -1,
+      visitTimeField ? visitTimeField.id : -1,
+      companyField ? companyField.id : -1,
+      phoneField.id,
+      phone
+    )
+    .map((row) => ({
+      id: row.id,
+      status: row.status,
+      createdAt: row.created_at,
+      decisionAt: row.decision_at,
+      rejectReasonCode: row.reject_reason_code,
+      rejectReasonText: row.reject_reason_text,
+      visitorName: row.visitor_name || "-",
+      visitTime: row.visit_time || "-",
+      companyName: row.company_name || "-"
+    }));
+
+  res.json({ success: true, phone, total: items.length, items });
 });
 
 app.get(`${BASE_PATH}/api/admin/notice`, (_req, res) => {
