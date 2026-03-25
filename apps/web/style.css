@@ -242,6 +242,51 @@ th {
   padding: 10px 12px;
 }
 
+.quick-range-row {
+  flex-wrap: nowrap;
+}
+
+.quick-range-row button {
+  width: auto;
+}
+
+.option-editor-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.option-editor-row button {
+  width: auto;
+}
+
+.option-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.option-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eef7f5;
+  border: 1px solid #c6e7df;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #0d6b5f;
+}
+
+.option-chip button {
+  width: auto;
+  border: none;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #d7ede7;
+  color: #0d6b5f;
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   .row.two {
     grid-template-columns: 1fr;

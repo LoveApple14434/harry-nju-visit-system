@@ -17,7 +17,7 @@
       </div>
 
       <section id="panelFields" class="card">
-        <h2>新增字段</h2>
+        <h2 id="fieldFormTitle">新增字段</h2>
         <div class="row two">
           <div>
             <label>字段 key</label>
@@ -45,11 +45,16 @@
           </div>
         </div>
         <div id="optWrap" style="margin-top: 10px" class="hidden">
-          <label>选择项（逗号分隔）</label>
-          <input id="fOptions" placeholder="例如 会议,面试,送货" />
+          <label>选择项</label>
+          <div class="option-editor-row">
+            <input id="fOptionInput" placeholder="输入一个选项" />
+            <button id="addOptionBtn" class="secondary" type="button">添加</button>
+          </div>
+          <div id="optionList" class="option-list" style="margin-top: 8px"></div>
         </div>
         <div class="actions" style="margin-top: 10px">
-          <button id="addFieldBtn" type="button">新增字段</button>
+          <button id="saveFieldBtn" type="button">保存字段</button>
+          <button id="cancelEditBtn" class="secondary hidden" type="button">取消编辑</button>
         </div>
 
         <h2 style="margin-top: 20px">当前字段</h2>
@@ -86,7 +91,7 @@
             </div>
           </div>
         </div>
-        <div class="actions" style="margin-top: 10px">
+        <div class="actions quick-range-row" style="margin-top: 10px">
           <button id="range3dBtn" class="secondary" type="button">三天内</button>
           <button id="range7dBtn" class="secondary" type="button">一周内</button>
           <button id="range30dBtn" class="secondary" type="button">一月内</button>

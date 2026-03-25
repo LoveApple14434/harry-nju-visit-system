@@ -20,6 +20,15 @@ const calendarEl = document.getElementById("calendar");
 
 const fType = document.getElementById("fType");
 const optWrap = document.getElementById("optWrap");
+const fieldFormTitle = document.getElementById("fieldFormTitle");
+const fKey = document.getElementById("fKey");
+const fLabel = document.getElementById("fLabel");
+const fRequired = document.getElementById("fRequired");
+const fOptionInput = document.getElementById("fOptionInput");
+const addOptionBtn = document.getElementById("addOptionBtn");
+const optionList = document.getElementById("optionList");
+const saveFieldBtn = document.getElementById("saveFieldBtn");
+const cancelEditBtn = document.getElementById("cancelEditBtn");
 const calMonth = document.getElementById("calMonth");
 const qKeyword = document.getElementById("qKeyword");
 const qStatus = document.getElementById("qStatus");
@@ -38,6 +47,8 @@ const REJECT_REASON_LABELS = {
 };
 
 let fieldsCache = [];
+let optionDraft = [];
+let editingFieldId = null;
 let listState = {
   page: 1,
   pageSize: 10,
@@ -63,7 +74,85 @@ Object.entries(tabs).forEach(([name, tab]) => {
 
 fType.addEventListener("change", () => {
   optWrap.classList.toggle("hidden", fType.value !== "select");
+  if (fType.value !== "select") {
+    optionDraft = [];
+    renderOptionDraft();
+  }
 });
+
+function renderOptionDraft() {
+  optionList.innerHTML = "";
+  optionDraft.forEach((opt, idx) => {
+    const chip = document.createElement("span");
+    chip.className = "option-chip";
+    chip.innerHTML = `<span>${opt}</span><button type="button" data-opt-del="${idx}">移除</button>`;
+    optionList.appendChild(chip);
+  });
+
+  optionList.querySelectorAll("button[data-opt-del]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.optDel);
+      optionDraft.splice(idx, 1);
+      renderOptionDraft();
+    });
+  });
+}
+
+function resetFieldForm() {
+  editingFieldId = null;
+  fieldFormTitle.textContent = "新增字段";
+  saveFieldBtn.textContent = "保存字段";
+  cancelEditBtn.classList.add("hidden");
+  fKey.disabled = false;
+  fType.disabled = false;
+  fRequired.disabled = false;
+
+  fKey.value = "";
+  fLabel.value = "";
+  fType.value = "text";
+  fRequired.value = "true";
+  fOptionInput.value = "";
+  optionDraft = [];
+  optWrap.classList.add("hidden");
+  renderOptionDraft();
+}
+
+function startEditField(field) {
+  editingFieldId = field.id;
+  fieldFormTitle.textContent = `编辑字段 #${field.id}`;
+  saveFieldBtn.textContent = "更新字段";
+  cancelEditBtn.classList.remove("hidden");
+
+  fKey.value = field.key;
+  fLabel.value = field.label;
+  fType.value = field.type;
+  fRequired.value = field.required ? "true" : "false";
+  optionDraft = [...(field.options || [])];
+  fOptionInput.value = "";
+  optWrap.classList.toggle("hidden", field.type !== "select");
+  renderOptionDraft();
+
+  const isFixedVisitTime = field.key === "visit_time";
+  fKey.disabled = isFixedVisitTime;
+  fType.disabled = isFixedVisitTime;
+  fRequired.disabled = isFixedVisitTime;
+}
+
+addOptionBtn.addEventListener("click", () => {
+  const text = fOptionInput.value.trim();
+  if (!text) {
+    return;
+  }
+  if (optionDraft.includes(text)) {
+    setMsg("该选项已存在");
+    return;
+  }
+  optionDraft.push(text);
+  fOptionInput.value = "";
+  renderOptionDraft();
+});
+
+cancelEditBtn.addEventListener("click", resetFieldForm);
 
 function openDatePicker(input) {
   if (typeof input.showPicker === "function") {
@@ -151,35 +240,7 @@ async function loadFields() {
       if (!current) {
         return;
       }
-      const label = prompt("字段名称", current.label) || current.label;
-      const required = confirm("点击确定表示必填，取消表示非必填");
-      const type = prompt("类型(text/number/select/file)", current.type) || current.type;
-      let options = current.options || [];
-      if (type === "select") {
-        const raw = prompt("选择项(逗号分隔)", options.join(",")) || "";
-        options = raw
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      }
-      const r = await fetch(`/api/admin/fields/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: current.key,
-          label,
-          type,
-          required,
-          options,
-          sortOrder: id
-        })
-      });
-      const d = await r.json();
-      if (!d.success) {
-        return setMsg(d.message || "更新失败");
-      }
-      setMsg("更新成功", true);
-      loadFields();
+      startEditField(current);
     });
   });
 
@@ -225,33 +286,40 @@ async function moveField(id, step) {
 }
 
 async function addField() {
-  const key = document.getElementById("fKey").value.trim();
-  const label = document.getElementById("fLabel").value.trim();
-  const type = document.getElementById("fType").value;
-  const required = document.getElementById("fRequired").value === "true";
-  const optionsRaw = document.getElementById("fOptions").value;
-  const options = optionsRaw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const key = fKey.value.trim();
+  const label = fLabel.value.trim();
+  const type = fType.value;
+  const required = fRequired.value === "true";
+  const options = [...optionDraft];
 
-  const res = await fetch("/api/admin/fields", {
-    method: "POST",
+  if (type === "select" && options.length === 0) {
+    setMsg("选择类型至少需要一个选项");
+    return;
+  }
+
+  const payload = { key, label, type, required, options };
+  const isEditing = Boolean(editingFieldId);
+  const url = isEditing ? `/api/admin/fields/${editingFieldId}` : "/api/admin/fields";
+  const method = isEditing ? "PUT" : "POST";
+  if (isEditing) {
+    payload.sortOrder = editingFieldId;
+  }
+
+  const res = await fetch(url, {
+    method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, label, type, required, options })
+    body: JSON.stringify(payload)
   });
   const data = await res.json();
   if (!data.success) {
-    return setMsg(data.message || "新增失败");
+    return setMsg(data.message || (isEditing ? "更新失败" : "新增失败"));
   }
-  setMsg("新增字段成功", true);
-  ["fKey", "fLabel", "fOptions"].forEach((id) => {
-    document.getElementById(id).value = "";
-  });
-  loadFields();
+  setMsg(isEditing ? "更新字段成功" : "新增字段成功", true);
+  resetFieldForm();
+  await loadFields();
 }
 
-document.getElementById("addFieldBtn").addEventListener("click", () => {
+saveFieldBtn.addEventListener("click", () => {
   addField().catch((e) => setMsg(e.message || "新增失败"));
 });
 
@@ -447,6 +515,7 @@ function initMonth() {
 }
 
 async function init() {
+  resetFieldForm();
   initMonth();
   await loadFields();
   await loadApplications(1);
