@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>访客预约</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>访客预约申请 <span class="tag">Demo</span></h1>
+      <div class="card">
+        <p>字段由后台管理员动态配置。</p>
+        <p class="hint">上传文件支持 pdf/jpg/jpeg/png，大小不超过 5MB。</p>
+        <form id="visitorForm" class="row"></form>
+        <div class="actions" style="margin-top: 12px">
+          <button id="submitBtn" type="button">提交申请</button>
+          <a href="/admin">进入管理员端</a>
+        </div>
+        <p id="msg"></p>
+        <div id="receipt" class="receipt hidden"></div>
+      </div>
+    </div>
+    <script type="module" src="/visitor.js"></script>
+  </body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>管理员端</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>后台管理员端 <span class="tag">Demo</span></h1>
+      <div class="nav">
+        <button id="tabFields" class="active">字段配置</button>
+        <button id="tabList">申请列表</button>
+        <button id="tabCalendar">日历视图</button>
+        <a href="/visitor">打开访客端</a>
+      </div>
+
+      <section id="panelFields" class="card">
+        <h2>新增字段</h2>
+        <div class="row two">
+          <div>
+            <label>字段 key</label>
+            <input id="fKey" placeholder="例如 company_name" />
+          </div>
+          <div>
+            <label>字段名称</label>
+            <input id="fLabel" placeholder="例如 公司名称" />
+          </div>
+          <div>
+            <label>类型</label>
+            <select id="fType">
+              <option value="text">文字填空</option>
+              <option value="number">数字</option>
+              <option value="select">选择</option>
+              <option value="file">文件上传</option>
+            </select>
+          </div>
+          <div>
+            <label>是否必填</label>
+            <select id="fRequired">
+              <option value="true">是</option>
+              <option value="false">否</option>
+            </select>
+          </div>
+        </div>
+        <div id="optWrap" style="margin-top: 10px" class="hidden">
+          <label>选择项（逗号分隔）</label>
+          <input id="fOptions" placeholder="例如 会议,面试,送货" />
+        </div>
+        <div class="actions" style="margin-top: 10px">
+          <button id="addFieldBtn" type="button">新增字段</button>
+        </div>
+
+        <h2 style="margin-top: 20px">当前字段</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>key</th>
+              <th>名称</th>
+              <th>类型</th>
+              <th>必填</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="fieldRows"></tbody>
+        </table>
+      </section>
+
+      <section id="panelList" class="card hidden">
+        <h2>申请列表</h2>
+        <div class="row two">
+          <div>
+            <label>开始时间 (ISO)</label>
+            <input id="qFrom" placeholder="2026-03-01T00:00:00.000Z" />
+          </div>
+          <div>
+            <label>结束时间 (ISO)</label>
+            <input id="qTo" placeholder="2026-03-31T23:59:59.999Z" />
+          </div>
+        </div>
+        <div style="margin-top: 10px">
+          <label>审批状态</label>
+          <select id="qStatus">
+            <option value="">全部</option>
+            <option value="pending">待审批</option>
+            <option value="approved">已通过</option>
+            <option value="rejected">已驳回</option>
+          </select>
+        </div>
+        <div style="margin-top: 10px">
+          <label>关键词（匹配填写内容或文件名）</label>
+          <input id="qKeyword" placeholder="例如 张三 / 会议 / 合同.pdf" />
+        </div>
+        <div class="actions" style="margin: 10px 0">
+          <button id="searchListBtn" type="button">查询</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>提交时间</th>
+              <th>单位名称</th>
+              <th>审批状态</th>
+              <th>审批操作</th>
+              <th>内容</th>
+            </tr>
+          </thead>
+          <tbody id="appRows"></tbody>
+        </table>
+        <div class="actions" style="margin-top: 10px">
+          <button id="prevPageBtn" class="secondary" type="button">上一页</button>
+          <button id="nextPageBtn" class="secondary" type="button">下一页</button>
+          <span id="pageInfo" class="tag">第 1 / 1 页</span>
+        </div>
+      </section>
+
+      <section id="panelCalendar" class="card hidden">
+        <h2>日历视图</h2>
+        <p class="hint">已通过审批的日期会高亮，并显示对应单位名称。</p>
+        <div class="row two">
+          <div>
+            <label>月份 (YYYY-MM)</label>
+            <input id="calMonth" />
+          </div>
+          <div class="actions" style="align-items: end">
+            <button id="loadCalBtn" type="button">加载日历</button>
+          </div>
+        </div>
+        <div id="calendar" class="calendar" style="margin-top: 12px"></div>
+        <div id="calendarDetails" class="card" style="margin-top: 12px">
+          <strong>日期详情</strong>
+          <div id="calendarDetailsBody" class="hint">点击有高亮的日期查看单位名称。</div>
+        </div>
+      </section>
+
+      <p id="adminMsg"></p>
+    </div>
+    <script type="module" src="/admin.js"></script>
+  </body>
+</html>
