@@ -135,13 +135,13 @@
         <h2>日历视图</h2>
         <p class="hint">已通过审批的日期会高亮，并显示对应单位名称。</p>
         <div class="row two">
-          <div>
+          <div class="month-load-col">
             <label>月份 (YYYY-MM)</label>
             <input id="calMonth" />
+            <button id="loadCalBtn" type="button" style="margin-top: 8px">加载日历</button>
           </div>
-          <div class="actions" style="align-items: end">
+          <div class="month-nav-col">
             <button id="prevMonthBtn" class="secondary" type="button">上一月</button>
-            <button id="loadCalBtn" type="button">加载日历</button>
             <button id="nextMonthBtn" class="secondary" type="button">下一月</button>
           </div>
         </div>

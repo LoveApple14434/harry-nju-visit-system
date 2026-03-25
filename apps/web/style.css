@@ -230,6 +230,18 @@ th {
   width: auto;
 }
 
+.month-load-col {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.month-nav-col {
+  display: grid;
+  gap: 8px;
+  align-content: end;
+}
+
 .date-input-group {
   display: flex;
   gap: 8px;
