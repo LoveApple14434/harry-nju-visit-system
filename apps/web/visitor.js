@@ -26,6 +26,30 @@ function setMsg(text, ok = false) {
   msgEl.textContent = text;
 }
 
+async function requestJson(url, options, fallbackMessage) {
+  const res = await fetch(url, options);
+  const contentType = res.headers.get("content-type") || "";
+  const raw = await res.text();
+
+  if (!contentType.includes("application/json")) {
+    const preview = raw.replace(/\s+/g, " ").slice(0, 80);
+    throw new Error(`接口返回非 JSON（${res.status} ${res.statusText}）: ${url} ${preview}`);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (_err) {
+    throw new Error(`接口 JSON 解析失败: ${url}`);
+  }
+
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || fallbackMessage);
+  }
+
+  return data;
+}
+
 async function rollbackTempUpload(tempId) {
   if (!tempId) {
     return;
@@ -49,11 +73,7 @@ function renderReceipt(applicationId) {
 }
 
 async function loadForm() {
-  const res = await fetch(`${BASE_PATH}/api/public/form`);
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(data.message || "加载表单失败");
-  }
+  const data = await requestJson(`${BASE_PATH}/api/public/form`, undefined, "加载表单失败");
   fields = data.fields;
   renderFields();
 }
@@ -109,14 +129,14 @@ function renderFields() {
           const formData = new FormData();
           formData.append("file", file);
           formData.append("fieldId", String(field.id));
-          const upRes = await fetch(`${BASE_PATH}/api/public/upload`, {
-            method: "POST",
-            body: formData
-          });
-          const upData = await upRes.json();
-          if (!upData.success) {
-            throw new Error(upData.message || "上传失败");
-          }
+          const upData = await requestJson(
+            `${BASE_PATH}/api/public/upload`,
+            {
+              method: "POST",
+              body: formData
+            },
+            "上传失败"
+          );
           uploads[field.id] = upData.tempId;
           if (previousTemp) {
             await rollbackTempUpload(previousTemp);
@@ -204,15 +224,15 @@ async function submit() {
   submitBtn.disabled = true;
   try {
     setMsg("提交中...");
-    const res = await fetch(`${BASE_PATH}/api/public/applications`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ values, uploads })
-    });
-    const data = await res.json();
-    if (!data.success) {
-      throw new Error(data.message || "提交失败");
-    }
+    const data = await requestJson(
+      `${BASE_PATH}/api/public/applications`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values, uploads })
+      },
+      "提交失败"
+    );
     setMsg(`提交成功，申请编号 #${data.applicationId}`, true);
     renderReceipt(data.applicationId);
     formEl.reset();
