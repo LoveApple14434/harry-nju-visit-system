@@ -137,12 +137,17 @@
         <div class="row two">
           <div class="month-load-col">
             <label>月份 (YYYY-MM)</label>
-            <input id="calMonth" />
-            <button id="loadCalBtn" type="button" style="margin-top: 8px">加载日历</button>
+            <div class="month-load-row">
+              <input id="calMonth" />
+              <button id="loadCalBtn" type="button">加载日历</button>
+            </div>
           </div>
           <div class="month-nav-col">
-            <button id="prevMonthBtn" class="secondary" type="button">上一月</button>
-            <button id="nextMonthBtn" class="secondary" type="button">下一月</button>
+            <label>月份切换</label>
+            <div class="month-nav-row">
+              <button id="prevMonthBtn" class="secondary" type="button">上一月</button>
+              <button id="nextMonthBtn" class="secondary" type="button">下一月</button>
+            </div>
           </div>
         </div>
         <div id="calendar" class="calendar" style="margin-top: 12px"></div>

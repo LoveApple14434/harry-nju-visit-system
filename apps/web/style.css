@@ -240,10 +240,31 @@ th {
   align-content: start;
 }
 
+.month-load-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.month-load-row button {
+  width: auto;
+  white-space: nowrap;
+}
+
 .month-nav-col {
   display: grid;
   gap: 8px;
-  align-content: end;
+  align-content: start;
+}
+
+.month-nav-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.month-nav-row button {
+  width: auto;
 }
 
 .date-input-group {
