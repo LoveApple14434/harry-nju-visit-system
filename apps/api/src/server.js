@@ -209,7 +209,7 @@ function validateFieldDefinition(input) {
 }
 
 function isFixedFieldByKey(key) {
-  return String(key || "").trim() === "visit_time";
+  return ["visit_time", "phone_number"].includes(String(key || "").trim());
 }
 
 function getVisitTimeField() {
@@ -596,7 +596,7 @@ app.put(`${BASE_PATH}/api/admin/fields/:id`, (req, res) => {
   }
   if (isFixedFieldByKey(current.field_key)) {
     if (!isFixedFieldByKey(body.key) || body.required !== true || body.type !== "text") {
-      return error(res, "来访时间为固定必填项，不允许修改 key/类型/必填属性");
+      return error(res, "固定字段不允许修改 key/类型/必填属性");
     }
   }
 
@@ -669,7 +669,7 @@ app.delete(`${BASE_PATH}/api/admin/fields/:id`, (req, res) => {
     return error(res, "字段不存在", 404);
   }
   if (isFixedFieldByKey(field.field_key)) {
-    return error(res, "来访时间为固定项，不允许删除");
+    return error(res, "固定字段不允许删除");
   }
   const result = db
     .prepare("UPDATE form_fields SET active = 0, updated_at = ? WHERE id = ? AND active = 1")

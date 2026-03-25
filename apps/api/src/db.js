@@ -78,6 +78,7 @@ export function initDb() {
 
   seedDefaults();
   ensureCompanyField();
+  ensurePhoneField();
   ensureVisitTimeField();
   ensureVisitorCountRange();
   ensureNoticeSetting();
@@ -141,12 +142,22 @@ function seedDefaults() {
       updated_at: now
     },
     {
+      field_key: "phone_number",
+      label: "手机号码",
+      type: "text",
+      required: 1,
+      options_json: null,
+      sort_order: 3,
+      created_at: now,
+      updated_at: now
+    },
+    {
       field_key: "company_name",
       label: "来访单位名称",
       type: "text",
       required: 1,
       options_json: null,
-      sort_order: 3,
+      sort_order: 4,
       created_at: now,
       updated_at: now
     },
@@ -156,7 +167,7 @@ function seedDefaults() {
       type: "number",
       required: 1,
       options_json: JSON.stringify({ min: 10, max: 50 }),
-      sort_order: 4,
+      sort_order: 5,
       created_at: now,
       updated_at: now
     },
@@ -166,7 +177,7 @@ function seedDefaults() {
       type: "select",
       required: 1,
       options_json: JSON.stringify(["会议", "面试", "送货"]),
-      sort_order: 5,
+      sort_order: 6,
       created_at: now,
       updated_at: now
     },
@@ -176,11 +187,31 @@ function seedDefaults() {
       type: "file",
       required: 0,
       options_json: null,
-      sort_order: 6,
+      sort_order: 7,
       created_at: now,
       updated_at: now
     }
   ]);
+}
+
+function ensurePhoneField() {
+  const now = new Date().toISOString();
+  const existing = db
+    .prepare("SELECT id, active FROM form_fields WHERE field_key = 'phone_number' ORDER BY id ASC LIMIT 1")
+    .get();
+
+  if (existing) {
+    db.prepare(
+      "UPDATE form_fields SET active = 1, required = 1, type = 'text', label = '手机号码', updated_at = ? WHERE id = ?"
+    ).run(now, existing.id);
+    return;
+  }
+
+  const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM form_fields WHERE active = 1").get().max_order;
+  db.prepare(
+    `INSERT INTO form_fields (field_key, label, type, required, options_json, sort_order, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
+  ).run("phone_number", "手机号码", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
 }
 
 function ensureCompanyField() {

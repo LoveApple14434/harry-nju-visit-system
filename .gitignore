@@ -1,6 +1,8 @@
 node_modules/
 .env
 *.db
-*.db-shm
-*.db-wal
+*.db-*
+visit.db
+visit.db-*
 uploads/
+uploads/**

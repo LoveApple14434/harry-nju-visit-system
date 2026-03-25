@@ -71,6 +71,10 @@ const REJECT_REASON_LABELS = {
   other: "其他"
 };
 
+function isFixedFieldKey(key) {
+  return ["visit_time", "phone_number"].includes(String(key || "").trim());
+}
+
 let fieldsCache = [];
 let optionDraft = [];
 let editingFieldId = null;
@@ -203,10 +207,10 @@ function startEditField(field) {
   numWrap.classList.toggle("hidden", field.type !== "number");
   renderOptionDraft();
 
-  const isFixedVisitTime = field.key === "visit_time";
-  fKey.disabled = isFixedVisitTime;
-  fType.disabled = isFixedVisitTime;
-  fRequired.disabled = isFixedVisitTime;
+  const isFixed = isFixedFieldKey(field.key);
+  fKey.disabled = isFixed;
+  fType.disabled = isFixed;
+  fRequired.disabled = isFixed;
 }
 
 addOptionBtn.addEventListener("click", () => {
@@ -268,11 +272,11 @@ async function loadFields() {
   fieldsCache = data.fields;
   fieldRows.innerHTML = "";
   data.fields.forEach((f, idx) => {
-    const isFixedVisitTime = f.key === "visit_time";
+    const isFixed = isFixedFieldKey(f.key);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${f.key}</td>
-      <td>${f.label}${isFixedVisitTime ? " <span class=\"tag\">固定</span>" : ""}</td>
+      <td>${f.label}${isFixed ? " <span class=\"tag\">固定</span>" : ""}</td>
       <td>${f.type}</td>
       <td>${f.required ? "是" : "否"}</td>
       <td>
@@ -281,7 +285,7 @@ async function loadFields() {
           <button class="secondary" data-down="${f.id}" ${idx === data.fields.length - 1 ? "disabled" : ""}>下移</button>
         </span>
         <button class="secondary" data-edit="${f.id}">编辑</button>
-        <button class="danger" data-del="${f.id}" ${isFixedVisitTime ? "disabled" : ""}>删除</button>
+        <button class="danger" data-del="${f.id}" ${isFixed ? "disabled" : ""}>删除</button>
       </td>
     `;
     fieldRows.appendChild(tr);
