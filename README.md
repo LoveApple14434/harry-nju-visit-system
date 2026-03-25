@@ -37,21 +37,96 @@ npm run dev
 	- 已预约数（已通过审批）
 	- 已预约单位名称（用于核对）
 
-## Git 开发流程
+## 服务器部署
 
-1. 初始化（首次）
+以下示例基于 Linux（Ubuntu 22.04+）、Node.js 20、Nginx、systemd。
+
+1. 安装运行环境
 
 ```bash
-git init
-git add .
-git commit -m "chore: bootstrap visit demo"
+sudo apt update
+sudo apt install -y nginx
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v
+npm -v
 ```
 
-2. 日常开发建议
+2. 上传代码并安装依赖
 
 ```bash
-git checkout -b feature/<name>
-git add .
-git commit -m "feat: <change summary>"
-git log --oneline --decorate -n 10
+cd /opt
+sudo mkdir -p visit && sudo chown -R "$USER":"$USER" visit
+cd /opt/visit
+# 将项目代码上传到此目录（git clone / rsync / scp 均可）
+npm install --omit=dev
+```
+
+3. 创建 systemd 服务
+
+```bash
+sudo tee /etc/systemd/system/visit-demo.service > /dev/null <<'EOF'
+[Unit]
+Description=Visit Demo Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/visit
+ExecStart=/usr/bin/node apps/api/src/server.js
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable visit-demo
+sudo systemctl start visit-demo
+sudo systemctl status visit-demo
+```
+
+4. 配置 Nginx 反向代理
+
+```bash
+sudo tee /etc/nginx/sites-available/visit-demo > /dev/null <<'EOF'
+server {
+	listen 80;
+	server_name _;
+
+	client_max_body_size 10m;
+
+	location / {
+		proxy_pass http://127.0.0.1:3000;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+	}
+}
+EOF
+
+sudo ln -sf /etc/nginx/sites-available/visit-demo /etc/nginx/sites-enabled/visit-demo
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+5. 可选：开启 HTTPS（推荐）
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+```
+
+6. 运维常用命令
+
+```bash
+sudo systemctl restart visit-demo
+sudo journalctl -u visit-demo -f
+sudo systemctl reload nginx
 ```
