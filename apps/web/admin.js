@@ -30,6 +30,8 @@ const optionList = document.getElementById("optionList");
 const saveFieldBtn = document.getElementById("saveFieldBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const calMonth = document.getElementById("calMonth");
+const prevMonthBtn = document.getElementById("prevMonthBtn");
+const nextMonthBtn = document.getElementById("nextMonthBtn");
 const qKeyword = document.getElementById("qKeyword");
 const qStatus = document.getElementById("qStatus");
 const qFromDate = document.getElementById("qFromDate");
@@ -514,7 +516,27 @@ function initMonth() {
   calMonth.value = `${now.getFullYear()}-${m}`;
 }
 
+function shiftMonth(offset) {
+  const raw = calMonth.value.trim();
+  const match = raw.match(/^(\d{4})-(\d{2})$/);
+  const base = match ? new Date(Number(match[1]), Number(match[2]) - 1, 1) : new Date();
+  base.setMonth(base.getMonth() + offset);
+  const m = String(base.getMonth() + 1).padStart(2, "0");
+  calMonth.value = `${base.getFullYear()}-${m}`;
+}
+
+prevMonthBtn.addEventListener("click", () => {
+  shiftMonth(-1);
+  loadCalendar().catch((e) => setMsg(e.message || "加载失败"));
+});
+
+nextMonthBtn.addEventListener("click", () => {
+  shiftMonth(1);
+  loadCalendar().catch((e) => setMsg(e.message || "加载失败"));
+});
+
 async function init() {
+  switchTab("list");
   resetFieldForm();
   initMonth();
   await loadFields();

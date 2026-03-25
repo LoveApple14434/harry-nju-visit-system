@@ -10,13 +10,12 @@
     <div class="container">
       <h1>后台管理员端 <span class="tag">Demo</span></h1>
       <div class="nav">
-        <button id="tabFields" class="active">字段配置</button>
-        <button id="tabList">申请列表</button>
+        <button id="tabFields">字段配置</button>
+        <button id="tabList" class="active">申请列表</button>
         <button id="tabCalendar">日历视图</button>
-        <a href="/visitor">打开访客端</a>
       </div>
 
-      <section id="panelFields" class="card">
+      <section id="panelFields" class="card hidden">
         <h2 id="fieldFormTitle">新增字段</h2>
         <div class="row two">
           <div>
@@ -73,7 +72,7 @@
         </table>
       </section>
 
-      <section id="panelList" class="card hidden">
+      <section id="panelList" class="card">
         <h2>申请列表</h2>
         <div class="row two">
           <div>
@@ -141,7 +140,9 @@
             <input id="calMonth" />
           </div>
           <div class="actions" style="align-items: end">
+            <button id="prevMonthBtn" class="secondary" type="button">上一月</button>
             <button id="loadCalBtn" type="button">加载日历</button>
+            <button id="nextMonthBtn" class="secondary" type="button">下一月</button>
           </div>
         </div>
         <div id="calendar" class="calendar" style="margin-top: 12px"></div>
