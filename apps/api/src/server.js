@@ -710,7 +710,16 @@ app.get(`${BASE_PATH}/api/admin/applications`, (req, res) => {
       const field = fieldMap.get(f.field_id);
       const name = field ? field.label : `文件字段${f.field_id}`;
       const url = f.path.startsWith(`${BASE_PATH}/`) ? f.path : withBasePath(f.path);
-      data[name] = { name: f.original_name, url };
+      const fileItem = { name: f.original_name, url };
+      if (!Object.prototype.hasOwnProperty.call(data, name)) {
+        data[name] = fileItem;
+        continue;
+      }
+      if (Array.isArray(data[name])) {
+        data[name].push(fileItem);
+      } else {
+        data[name] = [data[name], fileItem];
+      }
     }
 
     return {

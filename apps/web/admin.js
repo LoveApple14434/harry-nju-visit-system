@@ -400,6 +400,17 @@ async function loadApplications(page = listState.page) {
     const visitTime = item.data["来访时间"] || item.data["访客访问时间"] || "-";
     const content = Object.entries(item.data)
       .map(([k, v]) => {
+        if (Array.isArray(v)) {
+          const links = v
+            .filter((x) => x && typeof x === "object" && x.url)
+            .map((x) => {
+              const link = x.url.startsWith("/uploads/") ? `${BASE_PATH}${x.url}` : x.url;
+              return `<a href="${link}" target="_blank">${x.name}</a>`;
+            });
+          if (links.length > 0) {
+            return `${k}: ${links.join("、")}`;
+          }
+        }
         if (v && typeof v === "object" && v.url) {
           const link = v.url.startsWith("/uploads/") ? `${BASE_PATH}${v.url}` : v.url;
           return `${k}: <a href="${link}" target="_blank">${v.name}</a>`;
