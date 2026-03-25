@@ -274,9 +274,17 @@ function renderFields() {
     } else {
       input = document.createElement("input");
       if (field.key === "visit_time") {
-        input.type = "datetime-local";
+        input.type = "date";
       } else {
         input.type = field.type === "number" ? "number" : "text";
+        if (field.type === "number") {
+          if (field.numberMin !== null && field.numberMin !== undefined) {
+            input.min = String(field.numberMin);
+          }
+          if (field.numberMax !== null && field.numberMax !== undefined) {
+            input.max = String(field.numberMax);
+          }
+        }
       }
     }
 
@@ -321,6 +329,19 @@ function validate() {
     if (value && field.type === "number" && Number.isNaN(Number(value))) {
       errEl.textContent = "必须是数字";
       ok = false;
+      return;
+    }
+    if (value && field.type === "number") {
+      const n = Number(value);
+      if (field.numberMin !== null && field.numberMin !== undefined && n < Number(field.numberMin)) {
+        errEl.textContent = `不能小于 ${field.numberMin}`;
+        ok = false;
+        return;
+      }
+      if (field.numberMax !== null && field.numberMax !== undefined && n > Number(field.numberMax)) {
+        errEl.textContent = `不能大于 ${field.numberMax}`;
+        ok = false;
+      }
     }
   });
   return ok;

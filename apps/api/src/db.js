@@ -79,6 +79,7 @@ export function initDb() {
   seedDefaults();
   ensureCompanyField();
   ensureVisitTimeField();
+  ensureVisitorCountRange();
   ensureNoticeSetting();
 
   const uploadRuntimeDir = path.resolve("uploads/runtime");
@@ -154,7 +155,7 @@ function seedDefaults() {
       label: "来访人数",
       type: "number",
       required: 1,
-      options_json: null,
+      options_json: JSON.stringify({ min: 10, max: 50 }),
       sort_order: 4,
       created_at: now,
       updated_at: now
@@ -231,6 +232,29 @@ function ensureNoticeSetting() {
     "",
     new Date().toISOString()
   );
+}
+
+function ensureVisitorCountRange() {
+  const now = new Date().toISOString();
+  const row = db
+    .prepare("SELECT id, options_json FROM form_fields WHERE active = 1 AND field_key = 'visitor_count' LIMIT 1")
+    .get();
+  if (!row) {
+    return;
+  }
+  let parsed = {};
+  if (row.options_json) {
+    try {
+      const raw = JSON.parse(row.options_json);
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        parsed = raw;
+      }
+    } catch (_e) {
+      parsed = {};
+    }
+  }
+  const next = { ...parsed, min: 10, max: 50 };
+  db.prepare("UPDATE form_fields SET options_json = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(next), now, row.id);
 }
 
 export default db;

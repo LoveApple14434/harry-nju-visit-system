@@ -93,14 +93,39 @@ function getActiveFields() {
   const rows = db
     .prepare("SELECT * FROM form_fields WHERE active = 1 ORDER BY sort_order ASC, id ASC")
     .all();
-  return rows.map((row) => ({
-    id: row.id,
-    key: row.field_key,
-    label: row.label,
-    type: row.type,
-    required: Boolean(row.required),
-    options: row.options_json ? JSON.parse(row.options_json) : []
-  }));
+  return rows.map((row) => {
+    const parsed = row.options_json ? JSON.parse(row.options_json) : null;
+    const base = {
+      id: row.id,
+      key: row.field_key,
+      label: row.label,
+      type: row.type,
+      required: Boolean(row.required)
+    };
+
+    if (row.type === "select") {
+      return {
+        ...base,
+        options: Array.isArray(parsed) ? parsed : []
+      };
+    }
+
+    if (row.type === "number") {
+      const min = parsed && typeof parsed === "object" ? parsed.min : undefined;
+      const max = parsed && typeof parsed === "object" ? parsed.max : undefined;
+      return {
+        ...base,
+        options: [],
+        numberMin: Number.isFinite(Number(min)) ? Number(min) : null,
+        numberMax: Number.isFinite(Number(max)) ? Number(max) : null
+      };
+    }
+
+    return {
+      ...base,
+      options: []
+    };
+  });
 }
 
 function cleanupTempUploads(tempIds) {
@@ -125,8 +150,34 @@ function cleanupTempUploads(tempIds) {
   }
 }
 
+function normalizeOptionalNumber(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function buildFieldOptionsJson(input) {
+  if (input.type === "select") {
+    return JSON.stringify(input.options || []);
+  }
+  if (input.type === "number") {
+    const min = normalizeOptionalNumber(input.numberMin);
+    const max = normalizeOptionalNumber(input.numberMax);
+    if (min === null && max === null) {
+      return null;
+    }
+    return JSON.stringify({
+      ...(min !== null ? { min } : {}),
+      ...(max !== null ? { max } : {})
+    });
+  }
+  return null;
+}
+
 function validateFieldDefinition(input) {
-  const { key, label, type, required, options } = input;
+  const { key, label, type, required, options, numberMin, numberMax } = input;
   if (!key || !/^[a-zA-Z][a-zA-Z0-9_]{2,32}$/.test(key)) {
     return "字段 key 必须是 3-33 位字母数字下划线，且以字母开头";
   }
@@ -142,6 +193,16 @@ function validateFieldDefinition(input) {
   if (type === "select") {
     if (!Array.isArray(options) || options.length === 0) {
       return "选择类型必须至少提供一个选项";
+    }
+  }
+  if (type === "number") {
+    const min = normalizeOptionalNumber(numberMin);
+    const max = normalizeOptionalNumber(numberMax);
+    if (Number.isNaN(min) || Number.isNaN(max)) {
+      return "数字范围必须是合法数字";
+    }
+    if (min !== null && max !== null && min > max) {
+      return "数字范围最小值不能大于最大值";
     }
   }
   return null;
@@ -351,8 +412,17 @@ app.post(`${BASE_PATH}/api/public/applications`, (req, res) => {
     if (value === undefined || value === null || value === "") {
       continue;
     }
-    if (field.type === "number" && Number.isNaN(Number(value))) {
-      return error(res, `${field.label} 必须是数字`);
+    if (field.type === "number") {
+      if (Number.isNaN(Number(value))) {
+        return error(res, `${field.label} 必须是数字`);
+      }
+      const n = Number(value);
+      if (field.numberMin !== null && n < field.numberMin) {
+        return error(res, `${field.label} 不能小于 ${field.numberMin}`);
+      }
+      if (field.numberMax !== null && n > field.numberMax) {
+        return error(res, `${field.label} 不能大于 ${field.numberMax}`);
+      }
     }
     if (field.type === "select") {
       if (!field.options.includes(String(value))) {
@@ -475,7 +545,7 @@ app.post(`${BASE_PATH}/api/admin/fields`, (req, res) => {
         body.label.trim(),
         body.type,
         body.required ? 1 : 0,
-        body.type === "select" ? JSON.stringify(body.options || []) : null,
+        buildFieldOptionsJson(body),
         Number(body.sortOrder || maxOrder + 1),
         now,
         existed.id
@@ -497,7 +567,7 @@ app.post(`${BASE_PATH}/api/admin/fields`, (req, res) => {
         body.label.trim(),
         body.type,
         body.required ? 1 : 0,
-        body.type === "select" ? JSON.stringify(body.options || []) : null,
+        buildFieldOptionsJson(body),
         Number(body.sortOrder || maxOrder + 1),
         now,
         now
@@ -542,7 +612,7 @@ app.put(`${BASE_PATH}/api/admin/fields/:id`, (req, res) => {
       body.label.trim(),
       body.type,
       body.required ? 1 : 0,
-      body.type === "select" ? JSON.stringify(body.options || []) : null,
+      buildFieldOptionsJson(body),
       Number(body.sortOrder || id),
       now,
       id

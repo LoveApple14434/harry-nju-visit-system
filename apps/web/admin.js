@@ -38,10 +38,13 @@ const BASE_PATH = window.__BASE_PATH__ || inferBasePath();
 
 const fType = document.getElementById("fType");
 const optWrap = document.getElementById("optWrap");
+const numWrap = document.getElementById("numWrap");
 const fieldFormTitle = document.getElementById("fieldFormTitle");
 const fKey = document.getElementById("fKey");
 const fLabel = document.getElementById("fLabel");
 const fRequired = document.getElementById("fRequired");
+const fNumberMin = document.getElementById("fNumberMin");
+const fNumberMax = document.getElementById("fNumberMax");
 const fOptionInput = document.getElementById("fOptionInput");
 const addOptionBtn = document.getElementById("addOptionBtn");
 const optionList = document.getElementById("optionList");
@@ -76,6 +79,25 @@ let listState = {
   pageSize: 10,
   totalPages: 1
 };
+
+const shanghaiDateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false
+});
+
+function formatShanghaiDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value || "-";
+  }
+  return shanghaiDateTimeFormatter.format(date);
+}
 
 function setMsg(text, ok = false) {
   msgEl.className = ok ? "ok" : "error";
@@ -112,9 +134,14 @@ Object.entries(tabs).forEach(([name, tab]) => {
 
 fType.addEventListener("change", () => {
   optWrap.classList.toggle("hidden", fType.value !== "select");
+  numWrap.classList.toggle("hidden", fType.value !== "number");
   if (fType.value !== "select") {
     optionDraft = [];
     renderOptionDraft();
+  }
+  if (fType.value !== "number") {
+    fNumberMin.value = "";
+    fNumberMax.value = "";
   }
 });
 
@@ -149,9 +176,12 @@ function resetFieldForm() {
   fLabel.value = "";
   fType.value = "text";
   fRequired.value = "true";
+  fNumberMin.value = "";
+  fNumberMax.value = "";
   fOptionInput.value = "";
   optionDraft = [];
   optWrap.classList.add("hidden");
+  numWrap.classList.add("hidden");
   renderOptionDraft();
 }
 
@@ -165,9 +195,12 @@ function startEditField(field) {
   fLabel.value = field.label;
   fType.value = field.type;
   fRequired.value = field.required ? "true" : "false";
+  fNumberMin.value = field.numberMin ?? "";
+  fNumberMax.value = field.numberMax ?? "";
   optionDraft = [...(field.options || [])];
   fOptionInput.value = "";
   optWrap.classList.toggle("hidden", field.type !== "select");
+  numWrap.classList.toggle("hidden", field.type !== "number");
   renderOptionDraft();
 
   const isFixedVisitTime = field.key === "visit_time";
@@ -328,13 +361,35 @@ async function addField() {
   const type = fType.value;
   const required = fRequired.value === "true";
   const options = [...optionDraft];
+  const numberMinRaw = fNumberMin.value.trim();
+  const numberMaxRaw = fNumberMax.value.trim();
+  const numberMin = numberMinRaw === "" ? null : Number(numberMinRaw);
+  const numberMax = numberMaxRaw === "" ? null : Number(numberMaxRaw);
 
   if (type === "select" && options.length === 0) {
     setMsg("选择类型至少需要一个选项");
     return;
   }
+  if (type === "number") {
+    if ((numberMin !== null && Number.isNaN(numberMin)) || (numberMax !== null && Number.isNaN(numberMax))) {
+      setMsg("数字范围必须是合法数字");
+      return;
+    }
+    if (numberMin !== null && numberMax !== null && numberMin > numberMax) {
+      setMsg("数字范围最小值不能大于最大值");
+      return;
+    }
+  }
 
-  const payload = { key, label, type, required, options };
+  const payload = {
+    key,
+    label,
+    type,
+    required,
+    options,
+    numberMin: type === "number" ? numberMin : null,
+    numberMax: type === "number" ? numberMax : null
+  };
   const isEditing = Boolean(editingFieldId);
   const url = isEditing ? `${BASE_PATH}/api/admin/fields/${editingFieldId}` : `${BASE_PATH}/api/admin/fields`;
   const method = isEditing ? "PUT" : "POST";
@@ -429,6 +484,7 @@ async function loadApplications(page = listState.page) {
     const statusText = item.status === "approved" ? "已通过" : item.status === "rejected" ? "已驳回" : "待审批";
     const statusNote = item.status === "rejected" ? `（${item.rejectReasonText || "无理由"}）` : "";
     const visitTime = item.data["来访时间"] || item.data["访客访问时间"] || "-";
+    const createdAt = formatShanghaiDateTime(item.createdAt);
     const content = Object.entries(item.data)
       .map(([k, v]) => {
         return `${k}: ${renderDataValue(v)}`;
@@ -437,7 +493,7 @@ async function loadApplications(page = listState.page) {
 
     tr.innerHTML = `
       <td>${item.id}</td>
-      <td>${item.createdAt}</td>
+      <td>${createdAt}</td>
       <td>${visitTime}</td>
       <td>${item.companyName || "-"}</td>
       <td>${statusText}${statusNote}</td>
