@@ -23,6 +23,9 @@ const optWrap = document.getElementById("optWrap");
 const calMonth = document.getElementById("calMonth");
 const qKeyword = document.getElementById("qKeyword");
 const qStatus = document.getElementById("qStatus");
+const qTimeType = document.getElementById("qTimeType");
+const qFromDate = document.getElementById("qFromDate");
+const qToDate = document.getElementById("qToDate");
 const pageInfo = document.getElementById("pageInfo");
 const calendarDetailsBody = document.getElementById("calendarDetailsBody");
 
@@ -218,17 +221,19 @@ document.getElementById("addFieldBtn").addEventListener("click", () => {
 });
 
 async function loadApplications(page = listState.page) {
-  const from = document.getElementById("qFrom").value.trim();
-  const to = document.getElementById("qTo").value.trim();
+  const fromDate = qFromDate.value.trim();
+  const toDate = qToDate.value.trim();
+  const timeType = qTimeType.value.trim() || "submit";
   const keyword = qKeyword.value.trim();
   const status = qStatus.value.trim();
   const params = new URLSearchParams({ page: String(page), pageSize: String(listState.pageSize) });
-  if (from) {
-    params.set("from", from);
+  if (fromDate) {
+    params.set("fromDate", fromDate);
   }
-  if (to) {
-    params.set("to", to);
+  if (toDate) {
+    params.set("toDate", toDate);
   }
+  params.set("timeType", timeType);
   if (status) {
     params.set("status", status);
   }
@@ -374,8 +379,9 @@ function renderCalendar(month, byDay) {
       } else {
         calendarDetailsBody.innerHTML = `<div><strong>${date}</strong> 暂无已预约记录</div>`;
       }
-      document.getElementById("qFrom").value = `${date}T00:00:00.000Z`;
-      document.getElementById("qTo").value = `${date}T23:59:59.999Z`;
+      qTimeType.value = "visit";
+      qFromDate.value = date;
+      qToDate.value = date;
       switchTab("list");
       await loadApplications();
     });

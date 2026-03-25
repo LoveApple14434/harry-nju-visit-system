@@ -72,12 +72,21 @@
         <h2>申请列表</h2>
         <div class="row two">
           <div>
-            <label>开始时间 (ISO)</label>
-            <input id="qFrom" placeholder="2026-03-01T00:00:00.000Z" />
+            <label>时间口径</label>
+            <select id="qTimeType">
+              <option value="submit">表单提交时间</option>
+              <option value="visit">访客访问时间</option>
+            </select>
           </div>
           <div>
-            <label>结束时间 (ISO)</label>
-            <input id="qTo" placeholder="2026-03-31T23:59:59.999Z" />
+            <label>开始日期</label>
+            <input id="qFromDate" type="date" />
+          </div>
+        </div>
+        <div class="row two" style="margin-top: 10px">
+          <div>
+            <label>结束日期</label>
+            <input id="qToDate" type="date" />
           </div>
         </div>
         <div style="margin-top: 10px">

@@ -458,19 +458,49 @@ app.delete("/api/admin/fields/:id", (req, res) => {
 app.get("/api/admin/applications", (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
   const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize || 10)));
-  const from = req.query.from ? String(req.query.from) : null;
-  const to = req.query.to ? String(req.query.to) : null;
+  const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : "";
+  const toDate = req.query.toDate ? String(req.query.toDate).trim() : "";
+  const timeType = req.query.timeType ? String(req.query.timeType).trim() : "submit";
   const q = req.query.q ? String(req.query.q).trim() : "";
+  const visitTimeField = getVisitTimeField();
 
   const conditions = [];
   const params = [];
-  if (from) {
-    conditions.push("applications.created_at >= ?");
-    params.push(from);
-  }
-  if (to) {
-    conditions.push("applications.created_at <= ?");
-    params.push(to);
+  if (timeType === "visit") {
+    if (!visitTimeField) {
+      return error(res, "系统缺少访客访问时间字段");
+    }
+    if (fromDate) {
+      conditions.push(
+        `EXISTS (
+          SELECT 1 FROM application_values avf
+          WHERE avf.application_id = applications.id
+          AND avf.field_id = ?
+          AND substr(avf.value_text, 1, 10) >= ?
+        )`
+      );
+      params.push(visitTimeField.id, fromDate);
+    }
+    if (toDate) {
+      conditions.push(
+        `EXISTS (
+          SELECT 1 FROM application_values avt
+          WHERE avt.application_id = applications.id
+          AND avt.field_id = ?
+          AND substr(avt.value_text, 1, 10) <= ?
+        )`
+      );
+      params.push(visitTimeField.id, toDate);
+    }
+  } else {
+    if (fromDate) {
+      conditions.push("substr(applications.created_at, 1, 10) >= ?");
+      params.push(fromDate);
+    }
+    if (toDate) {
+      conditions.push("substr(applications.created_at, 1, 10) <= ?");
+      params.push(toDate);
+    }
   }
   const status = req.query.status ? String(req.query.status).trim() : "";
   if (status) {
@@ -550,6 +580,9 @@ app.get("/api/admin/applications", (req, res) => {
     success: true,
     page,
     pageSize,
+    timeType,
+    fromDate,
+    toDate,
     total,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
     items
