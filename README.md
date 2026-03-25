@@ -19,9 +19,22 @@ npm install
 npm run dev
 ```
 
+默认会读取 `config/app.config.json`：
+
+```json
+{
+	"port": 3000,
+	"basePath": "/visit"
+}
+```
+
+- `basePath` 支持配置为任意子路径（如 `/visit`、`/oa/visit`）。
+- 如需部署在根路径，可设为 `/`。
+- 也可用环境变量覆盖：`BASE_PATH`、`PORT`。
+
 3. 打开页面
-- 访客端: http://localhost:3000/visitor
-- 管理端: http://localhost:3000/admin
+- 访客端: http://localhost:3000/visit/visitor
+- 管理端: http://localhost:3000/visit/admin
 
 ## 说明
 - 管理端配置会实时影响访客端字段。
@@ -79,6 +92,7 @@ RestartSec=3
 User=www-data
 Group=www-data
 Environment=NODE_ENV=production
+Environment=BASE_PATH=/visit
 
 [Install]
 WantedBy=multi-user.target
@@ -100,7 +114,11 @@ server {
 
 	client_max_body_size 10m;
 
-	location / {
+	location = /visit {
+		return 301 /visit/;
+	}
+
+	location /visit/ {
 		proxy_pass http://127.0.0.1:3000;
 		proxy_http_version 1.1;
 		proxy_set_header Host $host;
@@ -115,6 +133,9 @@ sudo ln -sf /etc/nginx/sites-available/visit-demo /etc/nginx/sites-enabled/visit
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+说明：
+- 若你把 `config/app.config.json` 的 `basePath` 改成其他值（例如 `/oa/visit`），Nginx 的 `location /visit/` 也要同步改成对应前缀。
 
 5. 可选：开启 HTTPS（推荐）
 

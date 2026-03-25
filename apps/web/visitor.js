@@ -3,6 +3,19 @@ const msgEl = document.getElementById("msg");
 const submitBtn = document.getElementById("submitBtn");
 const receiptEl = document.getElementById("receipt");
 
+function inferBasePath() {
+  const pathname = window.location.pathname || "";
+  if (pathname.endsWith("/visitor")) {
+    return pathname.slice(0, -"/visitor".length);
+  }
+  if (pathname.endsWith("/admin")) {
+    return pathname.slice(0, -"/admin".length);
+  }
+  return "";
+}
+
+const BASE_PATH = window.__BASE_PATH__ || inferBasePath();
+
 let fields = [];
 const uploads = {};
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"];
@@ -18,7 +31,7 @@ async function rollbackTempUpload(tempId) {
     return;
   }
   try {
-    await fetch(`/api/public/upload/${encodeURIComponent(tempId)}`, { method: "DELETE" });
+    await fetch(`${BASE_PATH}/api/public/upload/${encodeURIComponent(tempId)}`, { method: "DELETE" });
   } catch (_e) {
     // Ignore rollback errors in demo.
   }
@@ -36,7 +49,7 @@ function renderReceipt(applicationId) {
 }
 
 async function loadForm() {
-  const res = await fetch("/api/public/form");
+  const res = await fetch(`${BASE_PATH}/api/public/form`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载表单失败");
@@ -96,7 +109,7 @@ function renderFields() {
           const formData = new FormData();
           formData.append("file", file);
           formData.append("fieldId", String(field.id));
-          const upRes = await fetch("/api/public/upload", {
+          const upRes = await fetch(`${BASE_PATH}/api/public/upload`, {
             method: "POST",
             body: formData
           });
@@ -191,7 +204,7 @@ async function submit() {
   submitBtn.disabled = true;
   try {
     setMsg("提交中...");
-    const res = await fetch("/api/public/applications", {
+    const res = await fetch(`${BASE_PATH}/api/public/applications`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ values, uploads })

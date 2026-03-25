@@ -18,6 +18,19 @@ const fieldRows = document.getElementById("fieldRows");
 const appRows = document.getElementById("appRows");
 const calendarEl = document.getElementById("calendar");
 
+function inferBasePath() {
+  const pathname = window.location.pathname || "";
+  if (pathname.endsWith("/admin")) {
+    return pathname.slice(0, -"/admin".length);
+  }
+  if (pathname.endsWith("/visitor")) {
+    return pathname.slice(0, -"/visitor".length);
+  }
+  return "";
+}
+
+const BASE_PATH = window.__BASE_PATH__ || inferBasePath();
+
 const fType = document.getElementById("fType");
 const optWrap = document.getElementById("optWrap");
 const fieldFormTitle = document.getElementById("fieldFormTitle");
@@ -191,7 +204,7 @@ document.getElementById("range7dBtn").addEventListener("click", () => setQuickRa
 document.getElementById("range30dBtn").addEventListener("click", () => setQuickRange(30));
 
 async function loadFields() {
-  const res = await fetch("/api/admin/fields");
+  const res = await fetch(`${BASE_PATH}/api/admin/fields`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载字段失败");
@@ -224,7 +237,7 @@ async function loadFields() {
       if (!confirm("确定删除该字段？")) {
         return;
       }
-      const r = await fetch(`/api/admin/fields/${id}`, { method: "DELETE" });
+      const r = await fetch(`${BASE_PATH}/api/admin/fields/${id}`, { method: "DELETE" });
       const d = await r.json();
       if (!d.success) {
         return setMsg(d.message || "删除失败");
@@ -272,7 +285,7 @@ async function moveField(id, step) {
   cloned.splice(targetIdx, 0, item);
   const orderedIds = cloned.map((f) => f.id);
 
-  const res = await fetch("/api/admin/fields/reorder", {
+  const res = await fetch(`${BASE_PATH}/api/admin/fields/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orderedIds })
@@ -300,7 +313,7 @@ async function addField() {
 
   const payload = { key, label, type, required, options };
   const isEditing = Boolean(editingFieldId);
-  const url = isEditing ? `/api/admin/fields/${editingFieldId}` : "/api/admin/fields";
+  const url = isEditing ? `${BASE_PATH}/api/admin/fields/${editingFieldId}` : `${BASE_PATH}/api/admin/fields`;
   const method = isEditing ? "PUT" : "POST";
   if (isEditing) {
     payload.sortOrder = editingFieldId;
@@ -348,7 +361,7 @@ async function loadApplications(page = listState.page) {
     params.set("q", keyword);
   }
 
-  const res = await fetch(`/api/admin/applications?${params.toString()}`);
+  const res = await fetch(`${BASE_PATH}/api/admin/applications?${params.toString()}`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载申请失败");
@@ -365,7 +378,8 @@ async function loadApplications(page = listState.page) {
     const content = Object.entries(item.data)
       .map(([k, v]) => {
         if (v && typeof v === "object" && v.url) {
-          return `${k}: <a href="${v.url}" target="_blank">${v.name}</a>`;
+          const link = v.url.startsWith("/uploads/") ? `${BASE_PATH}${v.url}` : v.url;
+          return `${k}: <a href="${link}" target="_blank">${v.name}</a>`;
         }
         return `${k}: ${v}`;
       })
@@ -418,7 +432,7 @@ async function loadApplications(page = listState.page) {
 }
 
 async function decideApplication(id, payload) {
-  const res = await fetch(`/api/admin/applications/${id}/decision`, {
+  const res = await fetch(`${BASE_PATH}/api/admin/applications/${id}/decision`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -502,7 +516,7 @@ function renderCalendar(month, byDay) {
 
 async function loadCalendar() {
   const month = calMonth.value.trim();
-  const res = await fetch(`/api/admin/calendar?month=${encodeURIComponent(month)}`);
+  const res = await fetch(`${BASE_PATH}/api/admin/calendar?month=${encodeURIComponent(month)}`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载日历失败");

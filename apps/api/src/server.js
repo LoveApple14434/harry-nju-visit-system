@@ -8,7 +8,45 @@ import db, { initDb } from "./db.js";
 import { ALLOWED_MIME, FIELD_TYPES, MAX_FILE_SIZE } from "./constants.js";
 
 const app = express();
-const PORT = 3000;
+const DEFAULT_CONFIG = {
+  port: 3000,
+  basePath: "/visit"
+};
+
+function normalizeBasePath(rawPath) {
+  const text = String(rawPath ?? "").trim();
+  if (!text || text === "/") {
+    return "";
+  }
+  const withLeadingSlash = text.startsWith("/") ? text : `/${text}`;
+  return withLeadingSlash.replace(/\/+$/, "");
+}
+
+function loadAppConfig() {
+  const configPath = path.resolve("config/app.config.json");
+  let fileConfig = {};
+
+  if (fs.existsSync(configPath)) {
+    try {
+      fileConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    } catch (err) {
+      console.warn("[config] app.config.json 解析失败，将使用默认配置", err.message);
+    }
+  }
+
+  const portCandidate = process.env.PORT ?? fileConfig.port ?? DEFAULT_CONFIG.port;
+  const port = Number(portCandidate);
+  const basePath = normalizeBasePath(process.env.BASE_PATH ?? fileConfig.basePath ?? DEFAULT_CONFIG.basePath);
+
+  return {
+    port: Number.isInteger(port) && port > 0 ? port : DEFAULT_CONFIG.port,
+    basePath
+  };
+}
+
+const runtimeConfig = loadAppConfig();
+const PORT = runtimeConfig.port;
+const BASE_PATH = runtimeConfig.basePath;
 const REJECT_REASONS = {
   date_conflict: "日期冲突",
   letter_invalid: "公函不合格",
@@ -20,8 +58,6 @@ initDb();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
-app.use("/uploads", express.static(path.resolve("uploads")));
-app.use(express.static(path.resolve("apps/web")));
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -131,23 +167,37 @@ function error(res, message, code = 400) {
   res.status(code).json({ success: false, message });
 }
 
+function withBasePath(urlPath) {
+  if (!urlPath.startsWith("/")) {
+    return `${BASE_PATH}/${urlPath}`;
+  }
+  return `${BASE_PATH}${urlPath}`;
+}
+
 app.get("/health", (_req, res) => {
   res.json({ success: true, now: new Date().toISOString() });
 });
 
-app.get("/visitor", (_req, res) => {
+app.get("/", (_req, res) => {
+  res.redirect(`${BASE_PATH}/visitor`);
+});
+
+app.get(`${BASE_PATH}/visitor`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/visitor.html"));
 });
 
-app.get("/admin", (_req, res) => {
+app.get(`${BASE_PATH}/admin`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/admin.html"));
 });
 
-app.get("/api/public/form", (_req, res) => {
+app.use(`${BASE_PATH}/uploads`, express.static(path.resolve("uploads")));
+app.use(BASE_PATH || "/", express.static(path.resolve("apps/web")));
+
+app.get(`${BASE_PATH}/api/public/form`, (_req, res) => {
   res.json({ success: true, fields: getActiveFields() });
 });
 
-app.post("/api/public/upload", upload.single("file"), (req, res) => {
+app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => {
   const fieldId = Number(req.body.fieldId);
   if (!fieldId || Number.isNaN(fieldId)) {
     if (req.file && fs.existsSync(req.file.path)) {
@@ -187,12 +237,12 @@ app.post("/api/public/upload", upload.single("file"), (req, res) => {
     file: {
       name: req.file.originalname,
       size: req.file.size,
-      url: `/uploads/runtime/${req.file.filename}`
+      url: withBasePath(`/uploads/runtime/${req.file.filename}`)
     }
   });
 });
 
-app.delete("/api/public/upload/:tempId", (req, res) => {
+app.delete(`${BASE_PATH}/api/public/upload/:tempId`, (req, res) => {
   const tempId = String(req.params.tempId || "").trim();
   if (!tempId) {
     return error(res, "tempId 不合法");
@@ -201,7 +251,7 @@ app.delete("/api/public/upload/:tempId", (req, res) => {
   res.json({ success: true });
 });
 
-app.post("/api/public/applications", (req, res) => {
+app.post(`${BASE_PATH}/api/public/applications`, (req, res) => {
   const fields = getActiveFields();
   const payload = req.body?.values || {};
   const uploads = req.body?.uploads || {};
@@ -315,11 +365,11 @@ app.post("/api/public/applications", (req, res) => {
   }
 });
 
-app.get("/api/admin/fields", (_req, res) => {
+app.get(`${BASE_PATH}/api/admin/fields`, (_req, res) => {
   res.json({ success: true, fields: getActiveFields() });
 });
 
-app.post("/api/admin/fields", (req, res) => {
+app.post(`${BASE_PATH}/api/admin/fields`, (req, res) => {
   const body = req.body || {};
   const msg = validateFieldDefinition(body);
   if (msg) {
@@ -384,7 +434,7 @@ app.post("/api/admin/fields", (req, res) => {
   }
 });
 
-app.put("/api/admin/fields/:id", (req, res) => {
+app.put(`${BASE_PATH}/api/admin/fields/:id`, (req, res) => {
   const id = Number(req.params.id);
   if (!id) {
     return error(res, "字段 ID 不合法");
@@ -430,7 +480,7 @@ app.put("/api/admin/fields/:id", (req, res) => {
   res.json({ success: true });
 });
 
-app.patch("/api/admin/fields/reorder", (req, res) => {
+app.patch(`${BASE_PATH}/api/admin/fields/reorder`, (req, res) => {
   const orderedIds = req.body?.orderedIds;
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
     return error(res, "orderedIds 不能为空");
@@ -464,7 +514,7 @@ app.patch("/api/admin/fields/reorder", (req, res) => {
   res.json({ success: true });
 });
 
-app.delete("/api/admin/fields/:id", (req, res) => {
+app.delete(`${BASE_PATH}/api/admin/fields/:id`, (req, res) => {
   const id = Number(req.params.id);
   if (!id) {
     return error(res, "字段 ID 不合法");
@@ -486,7 +536,7 @@ app.delete("/api/admin/fields/:id", (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/admin/applications", (req, res) => {
+app.get(`${BASE_PATH}/api/admin/applications`, (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
   const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize || 10)));
   const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : "";
@@ -584,7 +634,8 @@ app.get("/api/admin/applications", (req, res) => {
     for (const f of files) {
       const field = fieldMap.get(f.field_id);
       const name = field ? field.label : `文件字段${f.field_id}`;
-      data[name] = { name: f.original_name, url: f.path };
+      const url = f.path.startsWith(`${BASE_PATH}/`) ? f.path : withBasePath(f.path);
+      data[name] = { name: f.original_name, url };
     }
 
     return {
@@ -612,7 +663,7 @@ app.get("/api/admin/applications", (req, res) => {
   });
 });
 
-app.patch("/api/admin/applications/:id/decision", (req, res) => {
+app.patch(`${BASE_PATH}/api/admin/applications/:id/decision`, (req, res) => {
   const id = Number(req.params.id);
   if (!id) {
     return error(res, "申请 ID 不合法");
@@ -652,7 +703,7 @@ app.patch("/api/admin/applications/:id/decision", (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/admin/calendar", (req, res) => {
+app.get(`${BASE_PATH}/api/admin/calendar`, (req, res) => {
   const month = String(req.query.month || dayjs().format("YYYY-MM"));
   const start = dayjs(`${month}-01`).startOf("month");
   const end = start.endOf("month");
@@ -743,5 +794,6 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`visit demo running at http://localhost:${PORT}`);
+  const siteRoot = BASE_PATH || "/";
+  console.log(`visit demo running at http://localhost:${PORT}${siteRoot}`);
 });
