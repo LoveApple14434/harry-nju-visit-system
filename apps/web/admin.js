@@ -202,7 +202,6 @@ async function loadFields() {
     const isFixedVisitTime = f.key === "visit_time";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${f.id}</td>
       <td>${f.key}</td>
       <td>${f.label}${isFixedVisitTime ? " <span class=\"tag\">固定</span>" : ""}</td>
       <td>${f.type}</td>
@@ -362,6 +361,7 @@ async function loadApplications(page = listState.page) {
     const tr = document.createElement("tr");
     const statusText = item.status === "approved" ? "已通过" : item.status === "rejected" ? "已驳回" : "待审批";
     const statusNote = item.status === "rejected" ? `（${item.rejectReasonText || "无理由"}）` : "";
+    const visitTime = item.data["来访时间"] || item.data["访客访问时间"] || "-";
     const content = Object.entries(item.data)
       .map(([k, v]) => {
         if (v && typeof v === "object" && v.url) {
@@ -374,6 +374,7 @@ async function loadApplications(page = listState.page) {
     tr.innerHTML = `
       <td>${item.id}</td>
       <td>${item.createdAt}</td>
+      <td>${visitTime}</td>
       <td>${item.companyName || "-"}</td>
       <td>${statusText}${statusNote}</td>
       <td>
