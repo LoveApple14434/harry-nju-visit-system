@@ -330,6 +330,37 @@ app.post("/api/admin/fields", (req, res) => {
     db.prepare("SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM form_fields WHERE active = 1").get().max_order || 0;
   const now = new Date().toISOString();
 
+  const existed = db
+    .prepare("SELECT id, active, field_key FROM form_fields WHERE field_key = ? ORDER BY id ASC LIMIT 1")
+    .get(body.key);
+
+  if (existed && existed.active) {
+    return error(res, "字段 key 已存在");
+  }
+
+  // If this key was soft-deleted before, reactivate and overwrite with new definition.
+  if (existed && !existed.active) {
+    const result = db
+      .prepare(
+        `UPDATE form_fields
+         SET label = ?, type = ?, required = ?, options_json = ?, sort_order = ?, active = 1, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        body.label.trim(),
+        body.type,
+        body.required ? 1 : 0,
+        body.type === "select" ? JSON.stringify(body.options || []) : null,
+        Number(body.sortOrder || maxOrder + 1),
+        now,
+        existed.id
+      );
+
+    if (result.changes > 0) {
+      return res.status(201).json({ success: true, id: existed.id, restored: true });
+    }
+  }
+
   try {
     const result = db
       .prepare(
