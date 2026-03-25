@@ -103,6 +103,14 @@ function validateFieldDefinition(input) {
   return null;
 }
 
+function isFixedFieldByKey(key) {
+  return String(key || "").trim() === "visit_time";
+}
+
+function getVisitTimeField() {
+  return db.prepare("SELECT id, field_key, label FROM form_fields WHERE active = 1 AND field_key = 'visit_time' LIMIT 1").get();
+}
+
 function extractCompanyName(values, fieldMap) {
   const preferred = values.find((v) => {
     const field = fieldMap.get(v.field_id);
@@ -356,6 +364,16 @@ app.put("/api/admin/fields/:id", (req, res) => {
     return error(res, msg);
   }
 
+  const current = db.prepare("SELECT id, field_key FROM form_fields WHERE id = ? AND active = 1").get(id);
+  if (!current) {
+    return error(res, "字段不存在", 404);
+  }
+  if (isFixedFieldByKey(current.field_key)) {
+    if (!isFixedFieldByKey(body.key) || body.required !== true || body.type !== "text") {
+      return error(res, "访客访问时间为固定必填项，不允许修改 key/类型/必填属性");
+    }
+  }
+
   const now = new Date().toISOString();
   const result = db
     .prepare(
@@ -419,6 +437,13 @@ app.delete("/api/admin/fields/:id", (req, res) => {
   const id = Number(req.params.id);
   if (!id) {
     return error(res, "字段 ID 不合法");
+  }
+  const field = db.prepare("SELECT field_key FROM form_fields WHERE id = ? AND active = 1").get(id);
+  if (!field) {
+    return error(res, "字段不存在", 404);
+  }
+  if (isFixedFieldByKey(field.field_key)) {
+    return error(res, "访客访问时间为固定项，不允许删除");
   }
   const result = db
     .prepare("UPDATE form_fields SET active = 0, updated_at = ? WHERE id = ? AND active = 1")
@@ -575,16 +600,24 @@ app.get("/api/admin/calendar", (req, res) => {
   const month = String(req.query.month || dayjs().format("YYYY-MM"));
   const start = dayjs(`${month}-01`).startOf("month");
   const end = start.endOf("month");
+  const visitTimeField = getVisitTimeField();
+
+  if (!visitTimeField) {
+    return res.json({ success: true, month, byDay: {} });
+  }
 
   const rows = db
     .prepare(
-      `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS count
-       FROM applications
-       WHERE created_at >= ? AND created_at <= ?
-       GROUP BY substr(created_at, 1, 10)
+      `SELECT substr(av.value_text, 1, 10) AS day, COUNT(*) AS count
+       FROM applications a
+       JOIN application_values av ON av.application_id = a.id
+       WHERE av.field_id = ?
+       AND av.value_text >= ?
+       AND av.value_text <= ?
+       GROUP BY substr(av.value_text, 1, 10)
        ORDER BY day ASC`
     )
-    .all(start.toISOString(), end.toISOString());
+    .all(visitTimeField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
 
   const byDay = {};
   for (const row of rows) {
@@ -593,13 +626,16 @@ app.get("/api/admin/calendar", (req, res) => {
 
   const approvedRows = db
     .prepare(
-      `SELECT applications.id, substr(applications.created_at, 1, 10) AS day
-       FROM applications
-       WHERE applications.created_at >= ? AND applications.created_at <= ?
-       AND applications.status = 'approved'
-       ORDER BY applications.id DESC`
+      `SELECT a.id, substr(av.value_text, 1, 10) AS day
+       FROM applications a
+       JOIN application_values av ON av.application_id = a.id
+       WHERE av.field_id = ?
+       AND av.value_text >= ?
+       AND av.value_text <= ?
+       AND a.status = 'approved'
+       ORDER BY a.id DESC`
     )
-    .all(start.toISOString(), end.toISOString());
+    .all(visitTimeField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
 
   const fieldMap = new Map(getActiveFields().map((f) => [f.id, f]));
   const valueStmt = db.prepare(

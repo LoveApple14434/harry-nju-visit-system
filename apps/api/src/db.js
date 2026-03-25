@@ -71,6 +71,7 @@ export function initDb() {
 
   seedDefaults();
   ensureCompanyField();
+  ensureVisitTimeField();
 
   const uploadRuntimeDir = path.resolve("uploads/runtime");
   if (!fs.existsSync(uploadRuntimeDir)) {
@@ -121,12 +122,22 @@ function seedDefaults() {
       updated_at: now
     },
     {
+      field_key: "visit_time",
+      label: "访客访问时间",
+      type: "text",
+      required: 1,
+      options_json: null,
+      sort_order: 2,
+      created_at: now,
+      updated_at: now
+    },
+    {
       field_key: "company_name",
       label: "来访单位名称",
       type: "text",
       required: 1,
       options_json: null,
-      sort_order: 2,
+      sort_order: 3,
       created_at: now,
       updated_at: now
     },
@@ -136,7 +147,7 @@ function seedDefaults() {
       type: "number",
       required: 1,
       options_json: null,
-      sort_order: 3,
+      sort_order: 4,
       created_at: now,
       updated_at: now
     },
@@ -146,7 +157,7 @@ function seedDefaults() {
       type: "select",
       required: 1,
       options_json: JSON.stringify(["会议", "面试", "送货"]),
-      sort_order: 4,
+      sort_order: 5,
       created_at: now,
       updated_at: now
     },
@@ -156,7 +167,7 @@ function seedDefaults() {
       type: "file",
       required: 0,
       options_json: null,
-      sort_order: 5,
+      sort_order: 6,
       created_at: now,
       updated_at: now
     }
@@ -180,6 +191,26 @@ function ensureCompanyField() {
     `INSERT INTO form_fields (field_key, label, type, required, options_json, sort_order, active, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
   ).run("company_name", "来访单位名称", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
+}
+
+function ensureVisitTimeField() {
+  const now = new Date().toISOString();
+  const existing = db
+    .prepare("SELECT id, active, required, type FROM form_fields WHERE field_key = 'visit_time' ORDER BY id ASC LIMIT 1")
+    .get();
+
+  if (existing) {
+    db.prepare(
+      "UPDATE form_fields SET active = 1, required = 1, type = 'text', label = '访客访问时间', updated_at = ? WHERE id = ?"
+    ).run(now, existing.id);
+    return;
+  }
+
+  const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM form_fields WHERE active = 1").get().max_order;
+  db.prepare(
+    `INSERT INTO form_fields (field_key, label, type, required, options_json, sort_order, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
+  ).run("visit_time", "访客访问时间", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
 }
 
 export default db;

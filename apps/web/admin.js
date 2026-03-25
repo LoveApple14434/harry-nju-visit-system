@@ -70,11 +70,12 @@ async function loadFields() {
   fieldsCache = data.fields;
   fieldRows.innerHTML = "";
   data.fields.forEach((f, idx) => {
+    const isFixedVisitTime = f.key === "visit_time";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${f.id}</td>
       <td>${f.key}</td>
-      <td>${f.label}</td>
+      <td>${f.label}${isFixedVisitTime ? " <span class=\"tag\">固定</span>" : ""}</td>
       <td>${f.type}</td>
       <td>${f.required ? "是" : "否"}</td>
       <td>
@@ -83,7 +84,7 @@ async function loadFields() {
           <button class="secondary" data-down="${f.id}" ${idx === data.fields.length - 1 ? "disabled" : ""}>下移</button>
         </span>
         <button class="secondary" data-edit="${f.id}">编辑</button>
-        <button class="danger" data-del="${f.id}">删除</button>
+        <button class="danger" data-del="${f.id}" ${isFixedVisitTime ? "disabled" : ""}>删除</button>
       </td>
     `;
     fieldRows.appendChild(tr);

@@ -120,7 +120,11 @@ function renderFields() {
       });
     } else {
       input = document.createElement("input");
-      input.type = field.type === "number" ? "number" : "text";
+      if (field.key === "visit_time") {
+        input.type = "datetime-local";
+      } else {
+        input.type = field.type === "number" ? "number" : "text";
+      }
     }
 
     input.id = `f_${field.id}`;
