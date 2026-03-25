@@ -98,6 +98,17 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.btn-link {
+  display: inline-block;
+  width: auto;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e7c5d4;
+  background: #fff0f6;
+  color: var(--ink);
+}
+
 .tag {
   display: inline-block;
   background: var(--brand-soft);
@@ -218,6 +229,12 @@ th {
 
 .receipt p {
   margin: 6px 0;
+}
+
+.notice-content {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  min-height: 120px;
 }
 
 .order-controls {

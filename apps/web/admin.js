@@ -10,6 +10,10 @@ const tabs = {
   calendar: {
     button: document.getElementById("tabCalendar"),
     panel: document.getElementById("panelCalendar")
+  },
+  notice: {
+    button: document.getElementById("tabNotice"),
+    panel: document.getElementById("panelNotice")
   }
 };
 
@@ -54,6 +58,8 @@ const pageInfo = document.getElementById("pageInfo");
 const calendarDetailsBody = document.getElementById("calendarDetailsBody");
 const openFromDateBtn = document.getElementById("openFromDateBtn");
 const openToDateBtn = document.getElementById("openToDateBtn");
+const noticeContentInput = document.getElementById("noticeContentInput");
+const saveNoticeBtn = document.getElementById("saveNoticeBtn");
 
 const REJECT_REASON_LABELS = {
   date_conflict: "日期冲突",
@@ -541,6 +547,33 @@ async function loadCalendar() {
   renderCalendar(data.month, data.byDay || {});
 }
 
+async function loadNotice() {
+  const res = await fetch(`${BASE_PATH}/api/admin/notice`);
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.message || "加载须知失败");
+  }
+  noticeContentInput.value = data.content || "";
+}
+
+async function saveNotice() {
+  const content = noticeContentInput.value || "";
+  const res = await fetch(`${BASE_PATH}/api/admin/notice`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content })
+  });
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.message || "保存须知失败");
+  }
+  setMsg("须知已保存", true);
+}
+
+saveNoticeBtn.addEventListener("click", () => {
+  saveNotice().catch((e) => setMsg(e.message || "保存失败"));
+});
+
 document.getElementById("loadCalBtn").addEventListener("click", () => {
   loadCalendar().catch((e) => setMsg(e.message || "加载失败"));
 });
@@ -575,6 +608,7 @@ async function init() {
   switchTab("list");
   resetFieldForm();
   initMonth();
+  await loadNotice();
   await loadFields();
   await loadApplications(1);
   await loadCalendar();

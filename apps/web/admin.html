@@ -14,6 +14,7 @@
         <button id="tabFields">字段配置</button>
         <button id="tabList" class="active">申请列表</button>
         <button id="tabCalendar">日历视图</button>
+        <button id="tabNotice">须知配置</button>
       </div>
 
       <section id="panelFields" class="card hidden">
@@ -155,6 +156,16 @@
         <div id="calendarDetails" class="card" style="margin-top: 12px">
           <strong>日期详情</strong>
           <div id="calendarDetailsBody" class="hint">点击有高亮的日期查看单位名称。</div>
+        </div>
+      </section>
+
+      <section id="panelNotice" class="card hidden">
+        <h2>须知配置</h2>
+        <p class="hint">以下内容会展示在“须知阅读”页面，默认可为空。</p>
+        <label>须知内容</label>
+        <textarea id="noticeContentInput" rows="10" placeholder="请输入须知内容，支持换行"></textarea>
+        <div class="actions" style="margin-top: 10px">
+          <button id="saveNoticeBtn" type="button">保存须知</button>
         </div>
       </section>
 

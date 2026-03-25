@@ -190,6 +190,34 @@ function normalizeUploadTempIds(raw) {
   return single ? [single] : [];
 }
 
+function getNoticeContent() {
+  const row = db
+    .prepare("SELECT setting_value, updated_at FROM app_settings WHERE setting_key = 'notice_content' LIMIT 1")
+    .get();
+  if (!row) {
+    return { content: "", updatedAt: null };
+  }
+  return {
+    content: row.setting_value || "",
+    updatedAt: row.updated_at || null
+  };
+}
+
+function saveNoticeContent(content) {
+  const now = new Date().toISOString();
+  const result = db
+    .prepare("UPDATE app_settings SET setting_value = ?, updated_at = ? WHERE setting_key = 'notice_content'")
+    .run(String(content || ""), now);
+  if (result.changes === 0) {
+    db.prepare("INSERT INTO app_settings (setting_key, setting_value, updated_at) VALUES (?, ?, ?)").run(
+      "notice_content",
+      String(content || ""),
+      now
+    );
+  }
+  return now;
+}
+
 app.get("/health", (_req, res) => {
   res.json({ success: true, now: new Date().toISOString() });
 });
@@ -206,6 +234,10 @@ app.get(`${BASE_PATH}/admin`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/admin.html"));
 });
 
+app.get(`${BASE_PATH}/notice`, (_req, res) => {
+  res.sendFile(path.resolve("apps/web/notice.html"));
+});
+
 app.use(`${BASE_PATH}/uploads`, express.static(path.resolve("uploads")));
 app.use(BASE_PATH || "/", express.static(path.resolve("apps/web")));
 
@@ -215,6 +247,22 @@ app.get(`${BASE_PATH}/api/public/form`, (_req, res) => {
 
 app.get(`${BASE_PATH}/api/public/version`, (_req, res) => {
   res.json({ success: true, version: APP_VERSION, basePath: BASE_PATH || "/" });
+});
+
+app.get(`${BASE_PATH}/api/public/notice`, (_req, res) => {
+  const notice = getNoticeContent();
+  res.json({ success: true, content: notice.content, updatedAt: notice.updatedAt });
+});
+
+app.get(`${BASE_PATH}/api/admin/notice`, (_req, res) => {
+  const notice = getNoticeContent();
+  res.json({ success: true, content: notice.content, updatedAt: notice.updatedAt });
+});
+
+app.put(`${BASE_PATH}/api/admin/notice`, (req, res) => {
+  const content = String(req.body?.content || "");
+  const updatedAt = saveNoticeContent(content);
+  res.json({ success: true, updatedAt });
 });
 
 app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => {

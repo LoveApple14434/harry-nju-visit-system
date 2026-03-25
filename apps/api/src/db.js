@@ -65,6 +65,13 @@ export function initDb() {
       created_at TEXT NOT NULL,
       FOREIGN KEY(application_id) REFERENCES applications(id)
     );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      setting_key TEXT NOT NULL UNIQUE,
+      setting_value TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
   `);
 
   migrateApplicationsTable();
@@ -72,6 +79,7 @@ export function initDb() {
   seedDefaults();
   ensureCompanyField();
   ensureVisitTimeField();
+  ensureNoticeSetting();
 
   const uploadRuntimeDir = path.resolve("uploads/runtime");
   if (!fs.existsSync(uploadRuntimeDir)) {
@@ -211,6 +219,18 @@ function ensureVisitTimeField() {
     `INSERT INTO form_fields (field_key, label, type, required, options_json, sort_order, active, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
   ).run("visit_time", "来访时间", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
+}
+
+function ensureNoticeSetting() {
+  const existing = db.prepare("SELECT id FROM app_settings WHERE setting_key = 'notice_content' LIMIT 1").get();
+  if (existing) {
+    return;
+  }
+  db.prepare("INSERT INTO app_settings (setting_key, setting_value, updated_at) VALUES (?, ?, ?)").run(
+    "notice_content",
+    "",
+    new Date().toISOString()
+  );
 }
 
 export default db;
