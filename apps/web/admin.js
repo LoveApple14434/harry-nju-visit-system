@@ -393,6 +393,37 @@ async function loadApplications(page = listState.page) {
   listState.totalPages = data.totalPages || 1;
   pageInfo.textContent = `第 ${listState.page} / ${listState.totalPages} 页（共 ${data.total} 条）`;
   appRows.innerHTML = "";
+
+  const renderDataValue = (value) => {
+    if (Array.isArray(value)) {
+      const parts = value.map((item) => {
+        if (item && typeof item === "object") {
+          const rawLink = item.url || item.path;
+          const name = item.name || item.original_name || "附件";
+          if (rawLink) {
+            const link = rawLink.startsWith("/uploads/") ? `${BASE_PATH}${rawLink}` : rawLink;
+            return `<a href="${link}" target="_blank">${name}</a>`;
+          }
+          return name;
+        }
+        return String(item);
+      });
+      return parts.join("、");
+    }
+
+    if (value && typeof value === "object") {
+      const rawLink = value.url || value.path;
+      const name = value.name || value.original_name || "附件";
+      if (rawLink) {
+        const link = rawLink.startsWith("/uploads/") ? `${BASE_PATH}${rawLink}` : rawLink;
+        return `<a href="${link}" target="_blank">${name}</a>`;
+      }
+      return name;
+    }
+
+    return String(value);
+  };
+
   data.items.forEach((item) => {
     const tr = document.createElement("tr");
     const statusText = item.status === "approved" ? "已通过" : item.status === "rejected" ? "已驳回" : "待审批";
@@ -400,22 +431,7 @@ async function loadApplications(page = listState.page) {
     const visitTime = item.data["来访时间"] || item.data["访客访问时间"] || "-";
     const content = Object.entries(item.data)
       .map(([k, v]) => {
-        if (Array.isArray(v)) {
-          const links = v
-            .filter((x) => x && typeof x === "object" && x.url)
-            .map((x) => {
-              const link = x.url.startsWith("/uploads/") ? `${BASE_PATH}${x.url}` : x.url;
-              return `<a href="${link}" target="_blank">${x.name}</a>`;
-            });
-          if (links.length > 0) {
-            return `${k}: ${links.join("、")}`;
-          }
-        }
-        if (v && typeof v === "object" && v.url) {
-          const link = v.url.startsWith("/uploads/") ? `${BASE_PATH}${v.url}` : v.url;
-          return `${k}: <a href="${link}" target="_blank">${v.name}</a>`;
-        }
-        return `${k}: ${v}`;
+        return `${k}: ${renderDataValue(v)}`;
       })
       .join("<br />");
 
