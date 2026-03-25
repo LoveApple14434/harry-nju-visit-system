@@ -62,6 +62,24 @@ async function rollbackTempUpload(tempId) {
   }
 }
 
+function ensureUploadList(fieldId) {
+  if (!Array.isArray(uploads[fieldId])) {
+    uploads[fieldId] = [];
+  }
+  return uploads[fieldId];
+}
+
+function formatSize(size) {
+  if (!Number.isFinite(size) || size <= 0) {
+    return "0KB";
+  }
+  const kb = size / 1024;
+  if (kb < 1024) {
+    return `${kb.toFixed(1)}KB`;
+  }
+  return `${(kb / 1024).toFixed(2)}MB`;
+}
+
 function renderReceipt(applicationId) {
   const now = new Date().toLocaleString("zh-CN");
   receiptEl.innerHTML = `
@@ -100,6 +118,7 @@ function renderFields() {
     wrap.appendChild(label);
 
     let input;
+    let listEl = null;
     if (field.type === "select") {
       input = document.createElement("select");
       const d = document.createElement("option");
@@ -116,54 +135,142 @@ function renderFields() {
       input = document.createElement("input");
       input.type = "file";
       input.accept = ".pdf,.jpg,.jpeg,.png";
-      input.addEventListener("change", async () => {
-        const file = input.files?.[0];
-        if (!file) {
-          const oldTemp = uploads[field.id];
-          delete uploads[field.id];
-          await rollbackTempUpload(oldTemp);
+      listEl = document.createElement("div");
+      listEl.className = "file-upload-list";
+
+      const renderUploadList = () => {
+        const list = ensureUploadList(field.id);
+        listEl.innerHTML = "";
+        if (list.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "hint";
+          empty.textContent = "暂无附件";
+          listEl.appendChild(empty);
           return;
         }
 
+        list.forEach((item) => {
+          const row = document.createElement("div");
+          row.className = "file-upload-item";
+          row.innerHTML = `
+            <span class="name">${item.name} (${formatSize(item.size)})</span>
+            <span class="actions">
+              <button type="button" class="secondary" data-replace="${item.tempId}">替换</button>
+              <button type="button" class="danger" data-remove="${item.tempId}">删除</button>
+            </span>
+          `;
+          listEl.appendChild(row);
+        });
+      };
+
+      const uploadOne = async (file, replaceTempId = null) => {
         if (!ALLOWED_MIME.includes(file.type)) {
-          setMsg("文件类型不支持，仅支持 pdf/jpg/jpeg/png");
-          input.value = "";
-          return;
+          throw new Error("文件类型不支持，仅支持 pdf/jpg/jpeg/png");
         }
         if (file.size > MAX_FILE_SIZE) {
-          setMsg("文件超过 5MB 限制");
-          input.value = "";
-          return;
+          throw new Error("文件超过 5MB 限制");
         }
 
-        const previousTemp = uploads[field.id];
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("fieldId", String(field.id));
+        const upData = await requestJson(
+          `${BASE_PATH}/api/public/upload`,
+          {
+            method: "POST",
+            body: formData
+          },
+          "上传失败"
+        );
+
+        const list = ensureUploadList(field.id);
+        if (replaceTempId) {
+          const idx = list.findIndex((x) => x.tempId === replaceTempId);
+          if (idx >= 0) {
+            const oldTempId = list[idx].tempId;
+            list[idx] = {
+              tempId: upData.tempId,
+              name: upData.file.name,
+              size: upData.file.size,
+              url: upData.file.url
+            };
+            await rollbackTempUpload(oldTempId);
+          } else {
+            list.push({
+              tempId: upData.tempId,
+              name: upData.file.name,
+              size: upData.file.size,
+              url: upData.file.url
+            });
+          }
+        } else {
+          list.push({
+            tempId: upData.tempId,
+            name: upData.file.name,
+            size: upData.file.size,
+            url: upData.file.url
+          });
+        }
+        renderUploadList();
+        setMsg(`附件上传成功: ${upData.file.name}`, true);
+      };
+
+      input.addEventListener("change", async () => {
+        const file = input.files?.[0];
+        input.value = "";
+        if (!file) {
+          return;
+        }
         try {
           setMsg(`正在上传 ${file.name} ...`);
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("fieldId", String(field.id));
-          const upData = await requestJson(
-            `${BASE_PATH}/api/public/upload`,
-            {
-              method: "POST",
-              body: formData
-            },
-            "上传失败"
-          );
-          uploads[field.id] = upData.tempId;
-          if (previousTemp) {
-            await rollbackTempUpload(previousTemp);
-          }
-          setMsg(`附件上传成功: ${upData.file.name}`, true);
+          await uploadOne(file);
         } catch (e) {
-          delete uploads[field.id];
-          input.value = "";
-          if (previousTemp) {
-            await rollbackTempUpload(previousTemp);
-          }
           setMsg(e.message || "上传失败");
         }
       });
+
+      listEl.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const removeTempId = target.dataset.remove;
+        if (removeTempId) {
+          const list = ensureUploadList(field.id);
+          const idx = list.findIndex((x) => x.tempId === removeTempId);
+          if (idx >= 0) {
+            list.splice(idx, 1);
+            await rollbackTempUpload(removeTempId);
+            renderUploadList();
+            setMsg("附件已删除", true);
+          }
+          return;
+        }
+
+        const replaceTempId = target.dataset.replace;
+        if (replaceTempId) {
+          const picker = document.createElement("input");
+          picker.type = "file";
+          picker.accept = ".pdf,.jpg,.jpeg,.png";
+          picker.addEventListener("change", async () => {
+            const file = picker.files?.[0];
+            if (!file) {
+              return;
+            }
+            try {
+              setMsg(`正在替换 ${file.name} ...`);
+              await uploadOne(file, replaceTempId);
+              setMsg(`附件已替换: ${file.name}`, true);
+            } catch (e) {
+              setMsg(e.message || "替换失败");
+            }
+          });
+          picker.click();
+        }
+      });
+
+      renderUploadList();
     } else {
       input = document.createElement("input");
       if (field.key === "visit_time") {
@@ -177,6 +284,10 @@ function renderFields() {
     input.dataset.type = field.type;
     input.dataset.required = String(field.required);
     wrap.appendChild(input);
+
+    if (field.type === "file") {
+      wrap.appendChild(listEl);
+    }
 
     const err = document.createElement("div");
     err.className = "error";
@@ -193,7 +304,8 @@ function validate() {
     const errEl = document.getElementById(`err_${field.id}`);
     errEl.textContent = "";
     if (field.type === "file") {
-      if (field.required && !uploads[field.id]) {
+      const fileList = ensureUploadList(field.id);
+      if (field.required && fileList.length === 0) {
         errEl.textContent = "请上传文件";
         ok = false;
       }
@@ -236,13 +348,21 @@ async function submit() {
 
   submitBtn.disabled = true;
   try {
+    const fileUploads = {};
+    Object.entries(uploads).forEach(([fieldId, list]) => {
+      if (!Array.isArray(list) || list.length === 0) {
+        return;
+      }
+      fileUploads[fieldId] = list.map((item) => item.tempId).filter(Boolean);
+    });
+
     setMsg("提交中...");
     const data = await requestJson(
       `${BASE_PATH}/api/public/applications`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ values, uploads })
+        body: JSON.stringify({ values, uploads: fileUploads })
       },
       "提交失败"
     );

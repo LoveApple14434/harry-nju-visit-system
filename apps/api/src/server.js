@@ -182,6 +182,14 @@ function withBasePath(urlPath) {
   return `${BASE_PATH}${urlPath}`;
 }
 
+function normalizeUploadTempIds(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v || "").trim()).filter(Boolean);
+  }
+  const single = String(raw || "").trim();
+  return single ? [single] : [];
+}
+
 app.get("/health", (_req, res) => {
   res.json({ success: true, now: new Date().toISOString() });
 });
@@ -274,7 +282,8 @@ app.post(`${BASE_PATH}/api/public/applications`, (req, res) => {
       continue;
     }
     if (field.type === "file") {
-      if (!uploads[field.id]) {
+      const tempIds = normalizeUploadTempIds(uploads[field.id]);
+      if (tempIds.length === 0) {
         missing.push(field.label);
       }
       continue;
@@ -323,31 +332,33 @@ app.post(`${BASE_PATH}/api/public/applications`, (req, res) => {
 
     for (const field of fields) {
       if (field.type === "file") {
-        const tempId = uploads[field.id];
-        if (!tempId) {
+        const tempIds = normalizeUploadTempIds(uploads[field.id]);
+        if (tempIds.length === 0) {
           continue;
         }
-        const temp = getTemp.get(tempId);
-        if (!temp) {
-          throw new Error(`附件已失效: ${field.label}`);
+        for (const tempId of tempIds) {
+          const temp = getTemp.get(tempId);
+          if (!temp) {
+            throw new Error(`附件已失效: ${field.label}`);
+          }
+          const runtimePath = path.resolve(temp.path.slice(1));
+          const finalName = `${applicationId}_${temp.stored_name}`;
+          const finalDiskPath = path.resolve("uploads", finalName);
+          if (fs.existsSync(runtimePath)) {
+            fs.renameSync(runtimePath, finalDiskPath);
+          }
+          insertFile.run(
+            applicationId,
+            field.id,
+            temp.original_name,
+            finalName,
+            temp.mime_type,
+            temp.size,
+            `/uploads/${finalName}`,
+            now
+          );
+          delTemp.run(tempId);
         }
-        const runtimePath = path.resolve(temp.path.slice(1));
-        const finalName = `${applicationId}_${temp.stored_name}`;
-        const finalDiskPath = path.resolve("uploads", finalName);
-        if (fs.existsSync(runtimePath)) {
-          fs.renameSync(runtimePath, finalDiskPath);
-        }
-        insertFile.run(
-          applicationId,
-          field.id,
-          temp.original_name,
-          finalName,
-          temp.mime_type,
-          temp.size,
-          `/uploads/${finalName}`,
-          now
-        );
-        delTemp.run(tempId);
         continue;
       }
 
@@ -372,7 +383,11 @@ app.post(`${BASE_PATH}/api/public/applications`, (req, res) => {
     const applicationId = tx();
     res.status(201).json({ success: true, applicationId });
   } catch (e) {
-    cleanupTempUploads(Object.values(uploads));
+    const cleanupIds = [];
+    for (const val of Object.values(uploads)) {
+      cleanupIds.push(...normalizeUploadTempIds(val));
+    }
+    cleanupTempUploads(cleanupIds);
     error(res, e.message || "提交失败", 500);
   }
 });
