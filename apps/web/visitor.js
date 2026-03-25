@@ -2,6 +2,7 @@ const formEl = document.getElementById("visitorForm");
 const msgEl = document.getElementById("msg");
 const submitBtn = document.getElementById("submitBtn");
 const receiptEl = document.getElementById("receipt");
+const debugVersionEl = document.getElementById("debugVersion");
 
 function inferBasePath() {
   const pathname = window.location.pathname || "";
@@ -70,6 +71,18 @@ function renderReceipt(applicationId) {
     <p>状态：已受理（Demo）</p>
   `;
   receiptEl.classList.remove("hidden");
+}
+
+async function loadVersion() {
+  if (!debugVersionEl) {
+    return;
+  }
+  try {
+    const data = await requestJson(`${BASE_PATH}/api/public/version`, undefined, "加载版本失败");
+    debugVersionEl.textContent = `版本: v${data.version} | 路径: ${data.basePath}`;
+  } catch (_e) {
+    debugVersionEl.textContent = "版本: 获取失败";
+  }
 }
 
 async function loadForm() {
@@ -248,4 +261,5 @@ async function submit() {
 
 submitBtn.addEventListener("click", submit);
 
+loadVersion();
 loadForm().catch((e) => setMsg(e.message || "加载失败"));

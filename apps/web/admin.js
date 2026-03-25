@@ -17,6 +17,7 @@ const msgEl = document.getElementById("adminMsg");
 const fieldRows = document.getElementById("fieldRows");
 const appRows = document.getElementById("appRows");
 const calendarEl = document.getElementById("calendar");
+const debugVersionEl = document.getElementById("debugVersion");
 
 function inferBasePath() {
   const pathname = window.location.pathname || "";
@@ -73,6 +74,22 @@ let listState = {
 function setMsg(text, ok = false) {
   msgEl.className = ok ? "ok" : "error";
   msgEl.textContent = text;
+}
+
+async function loadVersion() {
+  if (!debugVersionEl) {
+    return;
+  }
+  try {
+    const res = await fetch(`${BASE_PATH}/api/public/version`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error("加载版本失败");
+    }
+    debugVersionEl.textContent = `版本: v${data.version} | 路径: ${data.basePath}`;
+  } catch (_e) {
+    debugVersionEl.textContent = "版本: 获取失败";
+  }
 }
 
 function switchTab(name) {
@@ -554,6 +571,7 @@ nextMonthBtn.addEventListener("click", () => {
 });
 
 async function init() {
+  loadVersion();
   switchTab("list");
   resetFieldForm();
   initMonth();

@@ -47,6 +47,14 @@ function loadAppConfig() {
 const runtimeConfig = loadAppConfig();
 const PORT = runtimeConfig.port;
 const BASE_PATH = runtimeConfig.basePath;
+const APP_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve("package.json"), "utf-8"));
+    return String(pkg.version || "unknown");
+  } catch (_err) {
+    return "unknown";
+  }
+})();
 const REJECT_REASONS = {
   date_conflict: "日期冲突",
   letter_invalid: "公函不合格",
@@ -195,6 +203,10 @@ app.use(BASE_PATH || "/", express.static(path.resolve("apps/web")));
 
 app.get(`${BASE_PATH}/api/public/form`, (_req, res) => {
   res.json({ success: true, fields: getActiveFields() });
+});
+
+app.get(`${BASE_PATH}/api/public/version`, (_req, res) => {
+  res.json({ success: true, version: APP_VERSION, basePath: BASE_PATH || "/" });
 });
 
 app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => {
