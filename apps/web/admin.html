@@ -72,22 +72,24 @@
         <h2>申请列表</h2>
         <div class="row two">
           <div>
-            <label>时间口径</label>
-            <select id="qTimeType">
-              <option value="submit">表单提交时间</option>
-              <option value="visit">访客访问时间</option>
-            </select>
+            <label>开始日期（按访问时间）</label>
+            <div class="date-input-group">
+              <button id="openFromDateBtn" class="secondary date-open-btn" type="button">日历</button>
+              <input id="qFromDate" type="date" />
+            </div>
           </div>
-          <div>
-            <label>开始日期</label>
-            <input id="qFromDate" type="date" />
-          </div>
-        </div>
-        <div class="row two" style="margin-top: 10px">
           <div>
             <label>结束日期</label>
-            <input id="qToDate" type="date" />
+            <div class="date-input-group">
+              <button id="openToDateBtn" class="secondary date-open-btn" type="button">日历</button>
+              <input id="qToDate" type="date" />
+            </div>
           </div>
+        </div>
+        <div class="actions" style="margin-top: 10px">
+          <button id="range3dBtn" class="secondary" type="button">三天内</button>
+          <button id="range7dBtn" class="secondary" type="button">一周内</button>
+          <button id="range30dBtn" class="secondary" type="button">一月内</button>
         </div>
         <div style="margin-top: 10px">
           <label>审批状态</label>

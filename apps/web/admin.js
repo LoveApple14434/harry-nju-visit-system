@@ -23,11 +23,12 @@ const optWrap = document.getElementById("optWrap");
 const calMonth = document.getElementById("calMonth");
 const qKeyword = document.getElementById("qKeyword");
 const qStatus = document.getElementById("qStatus");
-const qTimeType = document.getElementById("qTimeType");
 const qFromDate = document.getElementById("qFromDate");
 const qToDate = document.getElementById("qToDate");
 const pageInfo = document.getElementById("pageInfo");
 const calendarDetailsBody = document.getElementById("calendarDetailsBody");
+const openFromDateBtn = document.getElementById("openFromDateBtn");
+const openToDateBtn = document.getElementById("openToDateBtn");
 
 const REJECT_REASON_LABELS = {
   date_conflict: "日期冲突",
@@ -63,6 +64,40 @@ Object.entries(tabs).forEach(([name, tab]) => {
 fType.addEventListener("change", () => {
   optWrap.classList.toggle("hidden", fType.value !== "select");
 });
+
+function openDatePicker(input) {
+  if (typeof input.showPicker === "function") {
+    input.showPicker();
+    return;
+  }
+  input.focus();
+}
+
+openFromDateBtn.addEventListener("click", () => openDatePicker(qFromDate));
+openToDateBtn.addEventListener("click", () => openDatePicker(qToDate));
+
+function setQuickRange(days) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start);
+  end.setDate(start.getDate() + days - 1);
+
+  const fmt = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  };
+
+  qFromDate.value = fmt(start);
+  qToDate.value = fmt(end);
+  listState.page = 1;
+  loadApplications(1).catch((e) => setMsg(e.message || "快捷筛选失败"));
+}
+
+document.getElementById("range3dBtn").addEventListener("click", () => setQuickRange(3));
+document.getElementById("range7dBtn").addEventListener("click", () => setQuickRange(7));
+document.getElementById("range30dBtn").addEventListener("click", () => setQuickRange(30));
 
 async function loadFields() {
   const res = await fetch("/api/admin/fields");
@@ -223,9 +258,13 @@ document.getElementById("addFieldBtn").addEventListener("click", () => {
 async function loadApplications(page = listState.page) {
   const fromDate = qFromDate.value.trim();
   const toDate = qToDate.value.trim();
-  const timeType = qTimeType.value.trim() || "submit";
   const keyword = qKeyword.value.trim();
   const status = qStatus.value.trim();
+
+  if (fromDate && toDate && fromDate > toDate) {
+    throw new Error("开始日期不能晚于结束日期");
+  }
+
   const params = new URLSearchParams({ page: String(page), pageSize: String(listState.pageSize) });
   if (fromDate) {
     params.set("fromDate", fromDate);
@@ -233,7 +272,6 @@ async function loadApplications(page = listState.page) {
   if (toDate) {
     params.set("toDate", toDate);
   }
-  params.set("timeType", timeType);
   if (status) {
     params.set("status", status);
   }
@@ -379,7 +417,6 @@ function renderCalendar(month, byDay) {
       } else {
         calendarDetailsBody.innerHTML = `<div><strong>${date}</strong> 暂无已预约记录</div>`;
       }
-      qTimeType.value = "visit";
       qFromDate.value = date;
       qToDate.value = date;
       switchTab("list");
