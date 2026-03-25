@@ -157,6 +157,10 @@ th {
   border-color: #7fd3ad;
 }
 
+.day.pending {
+  box-shadow: inset 0 0 0 2px #ffd27d;
+}
+
 .day .n {
   font-weight: 700;
 }

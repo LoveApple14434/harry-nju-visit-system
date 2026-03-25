@@ -677,7 +677,7 @@ app.get("/api/admin/calendar", (req, res) => {
 
   const byDay = {};
   for (const row of rows) {
-    byDay[row.day] = { totalCount: row.count, approvedCount: 0, companies: [] };
+    byDay[row.day] = { totalCount: row.count, approvedCount: 0, pendingCount: 0, companies: [] };
   }
 
   const approvedRows = db
@@ -700,7 +700,7 @@ app.get("/api/admin/calendar", (req, res) => {
 
   for (const row of approvedRows) {
     if (!byDay[row.day]) {
-      byDay[row.day] = { totalCount: 0, approvedCount: 0, companies: [] };
+      byDay[row.day] = { totalCount: 0, approvedCount: 0, pendingCount: 0, companies: [] };
     }
     const values = valueStmt.all(row.id);
     const companyName = extractCompanyName(values, fieldMap);
@@ -709,6 +709,27 @@ app.get("/api/admin/calendar", (req, res) => {
     if (companyName !== "-" && !current.companies.includes(companyName)) {
       current.companies.push(companyName);
     }
+  }
+
+  const pendingRows = db
+    .prepare(
+      `SELECT substr(av.value_text, 1, 10) AS day, COUNT(*) AS count
+       FROM applications a
+       JOIN application_values av ON av.application_id = a.id
+       WHERE av.field_id = ?
+       AND av.value_text >= ?
+       AND av.value_text <= ?
+       AND a.status = 'pending'
+       GROUP BY substr(av.value_text, 1, 10)
+       ORDER BY day ASC`
+    )
+    .all(visitTimeField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
+
+  for (const row of pendingRows) {
+    if (!byDay[row.day]) {
+      byDay[row.day] = { totalCount: 0, approvedCount: 0, pendingCount: 0, companies: [] };
+    }
+    byDay[row.day].pendingCount = row.count;
   }
 
   res.json({ success: true, month, byDay });

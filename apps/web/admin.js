@@ -468,20 +468,23 @@ function renderCalendar(month, byDay) {
 
   for (let d = 1; d <= totalDays; d += 1) {
     const date = `${month}-${String(d).padStart(2, "0")}`;
-    const dayInfo = byDay[date] || { totalCount: 0, approvedCount: 0, companies: [] };
+    const dayInfo = byDay[date] || { totalCount: 0, approvedCount: 0, pendingCount: 0, companies: [] };
     const cell = document.createElement("div");
-    cell.className = `day${dayInfo.approvedCount > 0 ? " approved" : ""}`;
+    const isApproved = dayInfo.approvedCount > 0;
+    const isPending = dayInfo.pendingCount > 0;
+    cell.className = `day${isApproved ? " approved" : ""}${isPending ? " pending" : ""}`;
     const companyPreview = dayInfo.companies.length > 0 ? dayInfo.companies.slice(0, 2).join("、") : "";
     cell.innerHTML = `
       <div class="n">${d}</div>
       <div class="badge">总申请 ${dayInfo.totalCount}</div>
       <div class="badge">已预约 ${dayInfo.approvedCount}</div>
+      <div class="badge">待审批 ${dayInfo.pendingCount}</div>
       <div class="companies">${companyPreview || ""}</div>
     `;
     cell.addEventListener("click", async () => {
-      if (dayInfo.approvedCount > 0) {
+      if (dayInfo.approvedCount > 0 || dayInfo.pendingCount > 0) {
         calendarDetailsBody.innerHTML = `
-          <div><strong>${date}</strong> 已预约 ${dayInfo.approvedCount} 条</div>
+          <div><strong>${date}</strong> 已预约 ${dayInfo.approvedCount} 条，待审批 ${dayInfo.pendingCount} 条</div>
           <div style="margin-top:6px">单位：${dayInfo.companies.join("、") || "-"}</div>
         `;
       } else {
