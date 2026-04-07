@@ -273,22 +273,28 @@ async function loadFields() {
   fieldRows.innerHTML = "";
   data.fields.forEach((f, idx) => {
     const isFixed = isFixedFieldKey(f.key);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${f.key}</td>
-      <td>${f.label}${isFixed ? " <span class=\"tag\">固定</span>" : ""}</td>
-      <td>${f.type}</td>
-      <td>${f.required ? "是" : "否"}</td>
-      <td>
+    const card = document.createElement("article");
+    card.className = "admin-item-card";
+    card.innerHTML = `
+      <div class="admin-item-head">
+        <strong>${f.label}</strong>
+        ${isFixed ? '<span class="tag">固定</span>' : ""}
+      </div>
+      <div class="admin-meta-grid">
+        <div><span class="k">key</span><span class="v">${f.key}</span></div>
+        <div><span class="k">类型</span><span class="v">${f.type}</span></div>
+        <div><span class="k">必填</span><span class="v">${f.required ? "是" : "否"}</span></div>
+      </div>
+      <div class="actions" style="margin-top: 10px">
         <span class="order-controls">
           <button class="secondary" data-up="${f.id}" ${idx === 0 ? "disabled" : ""}>上移</button>
           <button class="secondary" data-down="${f.id}" ${idx === data.fields.length - 1 ? "disabled" : ""}>下移</button>
         </span>
         <button class="secondary" data-edit="${f.id}">编辑</button>
         <button class="danger" data-del="${f.id}" ${isFixed ? "disabled" : ""}>删除</button>
-      </td>
+      </div>
     `;
-    fieldRows.appendChild(tr);
+    fieldRows.appendChild(card);
   });
 
   fieldRows.querySelectorAll("button[data-del]").forEach((btn) => {
@@ -453,6 +459,11 @@ async function loadApplications(page = listState.page) {
   pageInfo.textContent = `第 ${listState.page} / ${listState.totalPages} 页（共 ${data.total} 条）`;
   appRows.innerHTML = "";
 
+  if (!Array.isArray(data.items) || data.items.length === 0) {
+    appRows.innerHTML = '<div class="empty-card hint">暂无申请记录</div>';
+    return;
+  }
+
   const renderDataValue = (value) => {
     if (Array.isArray(value)) {
       const parts = value.map((item) => {
@@ -484,26 +495,26 @@ async function loadApplications(page = listState.page) {
   };
 
   data.items.forEach((item) => {
-    const tr = document.createElement("tr");
+    const card = document.createElement("article");
+    card.className = "admin-item-card";
     const statusText = item.status === "approved" ? "已通过" : item.status === "rejected" ? "已驳回" : "待审批";
-    const statusNote = item.status === "rejected" ? `（${item.rejectReasonText || "无理由"}）` : "";
-    const visitTime = item.data["来访时间"] || item.data["访客访问时间"] || "-";
-    const createdAt = formatShanghaiDateTime(item.createdAt);
     const content = Object.entries(item.data)
       .map(([k, v]) => {
         return `${k}: ${renderDataValue(v)}`;
       })
       .join("<br />");
 
-    tr.innerHTML = `
-      <td>${item.id}</td>
-      <td>${createdAt}</td>
-      <td>${visitTime}</td>
-      <td>${item.companyName || "-"}</td>
-      <td>${statusText}${statusNote}</td>
-      <td>
+    card.innerHTML = `
+      <div class="admin-item-head">
+        <strong>申请 #${item.id}</strong>
+        <span class="status-pill ${item.status === "approved" ? "status-approved" : item.status === "rejected" ? "status-rejected" : "status-pending"}">${statusText}</span>
+      </div>
+      <div style="margin-top: 8px">
+        <div class="k">内容</div>
+        <div class="admin-content">${content || "-"}</div>
+      </div>
+      <div style="margin-top: 10px">
         <div class="approval-controls">
-          <button class="secondary" data-approve="${item.id}" ${item.status === "approved" ? "disabled" : ""}>通过</button>
           <select data-reason-code="${item.id}">
             <option value="">驳回预设理由</option>
             <option value="date_conflict">日期冲突</option>
@@ -512,12 +523,14 @@ async function loadApplications(page = listState.page) {
             <option value="other">其他</option>
           </select>
           <input data-reason-text="${item.id}" placeholder="或输入驳回理由" />
-          <button class="danger" data-reject="${item.id}" ${item.status === "rejected" ? "disabled" : ""}>驳回</button>
+          <div class="approval-actions-row">
+            <button class="secondary" data-approve="${item.id}" ${item.status === "approved" ? "disabled" : ""}>通过</button>
+            <button class="danger" data-reject="${item.id}" ${item.status === "rejected" ? "disabled" : ""}>驳回</button>
+          </div>
         </div>
-      </td>
-      <td>${content || "-"}</td>
+      </div>
     `;
-    appRows.appendChild(tr);
+    appRows.appendChild(card);
   });
 
   appRows.querySelectorAll("button[data-approve]").forEach((btn) => {

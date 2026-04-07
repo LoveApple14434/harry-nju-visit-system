@@ -300,7 +300,7 @@ app.get(`${BASE_PATH}/admin`, (_req, res) => {
 });
 
 app.get(`${BASE_PATH}/notice`, (_req, res) => {
-  res.sendFile(path.resolve("apps/web/notice.html"));
+  res.redirect(`${BASE_PATH}/visitor`);
 });
 
 app.get(`${BASE_PATH}/query`, (_req, res) => {
@@ -308,6 +308,7 @@ app.get(`${BASE_PATH}/query`, (_req, res) => {
 });
 
 app.use(`${BASE_PATH}/uploads`, express.static(path.resolve("uploads")));
+app.use(`${BASE_PATH}/img`, express.static(path.resolve("apps/img")));
 app.use(BASE_PATH || "/", express.static(path.resolve("apps/web")));
 
 app.get(`${BASE_PATH}/api/public/form`, (_req, res) => {

@@ -15,9 +15,12 @@
 body {
   margin: 0;
   font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
-  background: radial-gradient(circle at 10% 10%, #ffe4ee, transparent 35%),
-    radial-gradient(circle at 90% 0%, #ffeef5, transparent 30%),
-    var(--bg);
+  background-image: linear-gradient(rgba(255, 245, 248, 0.58), rgba(255, 245, 248, 0.62)), url("./img/background.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-color: var(--bg);
   color: var(--ink);
 }
 
@@ -347,6 +350,75 @@ th {
   cursor: pointer;
 }
 
+.admin-card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.admin-item-card {
+  border: 1px solid #f0bfd3;
+  border-radius: 12px;
+  background: #fff9fc;
+  padding: 12px;
+}
+
+.admin-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.admin-meta-grid > div {
+  background: #fff0f6;
+  border: 1px solid #f0d4e1;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.admin-meta-grid .k {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.admin-meta-grid .v {
+  display: block;
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+.admin-content {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px dashed #e7c5d4;
+  border-radius: 10px;
+  background: #ffffff;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.approval-actions-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.empty-card {
+  border: 1px dashed #e7c5d4;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff9fc;
+}
+
 .file-upload-list {
   margin-top: 8px;
   display: grid;
@@ -419,8 +491,163 @@ th {
   border-color: #f0b5c2;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(41, 20, 30, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-card {
+  width: min(720px, 100%);
+  max-height: min(80vh, 680px);
+  overflow: auto;
+  background: #ffffff;
+  border: 1px solid #f0bfd3;
+  border-radius: 14px;
+  box-shadow: 0 16px 42px rgba(41, 20, 30, 0.22);
+  padding: 18px;
+}
+
+.modal-card h2 {
+  margin-top: 0;
+}
+
 @media (max-width: 900px) {
   .row.two {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .container {
+    width: 94vw;
+    margin: 16px auto;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  h1 {
+    font-size: 1.34rem;
+    margin-bottom: 10px;
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions .btn-link,
+  .actions button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .nav button {
+    width: 100%;
+  }
+
+  .calendar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .day {
+    min-height: 78px;
+    padding: 7px;
+  }
+
+  table {
+    font-size: 0.84rem;
+  }
+
+  th,
+  td {
+    padding: 8px 6px;
+    white-space: nowrap;
+  }
+
+  .month-load-row,
+  .month-nav-row,
+  .date-input-group,
+  .quick-range-row,
+  .option-editor-row,
+  .order-controls,
+  .file-upload-item,
+  .file-upload-item .actions {
+    flex-wrap: wrap;
+  }
+
+  .query-actions {
+    justify-content: stretch;
+  }
+
+  .query-actions button {
+    width: 100%;
+  }
+
+  .admin-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-card-list {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-card {
+    max-height: 85vh;
+    padding: 14px;
+  }
+
+  .notice-content {
+    min-height: 0;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    width: 96vw;
+    margin: 12px auto;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+  }
+
+  .calendar {
+    grid-template-columns: 1fr;
+  }
+
+  .day {
+    min-height: 64px;
+  }
+
+  table {
+    font-size: 0.8rem;
+  }
+
+  .status-pill {
+    font-size: 0.76rem;
+    padding: 2px 8px;
   }
 }

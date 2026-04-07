@@ -3,6 +3,9 @@ const msgEl = document.getElementById("msg");
 const submitBtn = document.getElementById("submitBtn");
 const receiptEl = document.getElementById("receipt");
 const debugVersionEl = document.getElementById("debugVersion");
+const noticeModalEl = document.getElementById("noticeModal");
+const noticeModalContentEl = document.getElementById("noticeModalContent");
+const noticeModalCloseEl = document.getElementById("noticeModalClose");
 
 function inferBasePath() {
   const pathname = window.location.pathname || "";
@@ -100,6 +103,35 @@ async function loadVersion() {
     debugVersionEl.textContent = `版本: v${data.version} | 路径: ${data.basePath}`;
   } catch (_e) {
     debugVersionEl.textContent = "版本: 获取失败";
+  }
+}
+
+function openNoticeModal(content) {
+  if (!noticeModalEl || !noticeModalContentEl) {
+    return;
+  }
+  noticeModalContentEl.textContent = content || "暂无须知内容。";
+  noticeModalEl.classList.remove("hidden");
+  noticeModalEl.setAttribute("aria-hidden", "false");
+}
+
+function closeNoticeModal() {
+  if (!noticeModalEl) {
+    return;
+  }
+  noticeModalEl.classList.add("hidden");
+  noticeModalEl.setAttribute("aria-hidden", "true");
+}
+
+async function loadNoticePopup() {
+  try {
+    const data = await requestJson(`${BASE_PATH}/api/public/notice`, undefined, "加载须知失败");
+    const content = String(data.content || "").trim();
+    if (content) {
+      openNoticeModal(content);
+    }
+  } catch (_e) {
+    // Keep booking page usable even if notice loading fails.
   }
 }
 
@@ -402,5 +434,18 @@ async function submit() {
 
 submitBtn.addEventListener("click", submit);
 
+if (noticeModalCloseEl) {
+  noticeModalCloseEl.addEventListener("click", closeNoticeModal);
+}
+
+if (noticeModalEl) {
+  noticeModalEl.addEventListener("click", (event) => {
+    if (event.target === noticeModalEl) {
+      closeNoticeModal();
+    }
+  });
+}
+
 loadVersion();
+loadNoticePopup();
 loadForm().catch((e) => setMsg(e.message || "加载失败"));

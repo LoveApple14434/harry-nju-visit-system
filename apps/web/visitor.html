@@ -11,7 +11,6 @@
       <h1>访客预约申请 <span class="tag">Demo</span></h1>
       <p id="debugVersion" class="version-debug">版本: 加载中...</p>
       <div class="actions" style="margin-bottom: 12px">
-        <a class="btn-link" href="./notice">阅读来访须知</a>
         <a class="btn-link" href="./query">查询预约状态</a>
       </div>
       <div class="card">
@@ -25,6 +24,17 @@
         <div id="receipt" class="receipt hidden"></div>
       </div>
     </div>
+
+    <div id="noticeModal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="noticeModalTitle">
+        <h2 id="noticeModalTitle">来访须知</h2>
+        <div id="noticeModalContent" class="notice-content">加载中...</div>
+        <div class="actions" style="margin-top: 12px">
+          <button id="noticeModalClose" type="button">我已阅读</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="./visitor.js"></script>
   </body>
 </html>
