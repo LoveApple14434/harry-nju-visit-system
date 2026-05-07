@@ -15,6 +15,10 @@ const tabs = {
     button: document.getElementById("tabNotice"),
     panel: document.getElementById("panelNotice")
   }
+  ,analytics: {
+    button: document.getElementById("tabAnalytics"),
+    panel: document.getElementById("panelAnalytics")
+  }
 };
 
 const msgEl = document.getElementById("adminMsg");
@@ -703,13 +707,7 @@ nextMonthBtn.addEventListener("click", () => {
   loadCalendar().catch((e) => setMsg(e.message || "加载失败"));
 });
 
-// 统计页面导航
-const tabAnalyticsBtn = document.getElementById("tabAnalytics");
-if (tabAnalyticsBtn) {
-  tabAnalyticsBtn.addEventListener("click", () => {
-    window.location.href = `${BASE_PATH}/analytics`;
-  });
-}
+// analytics tab uses the tabs switcher; no redirect needed
 
 async function init() {
   loadVersion();

@@ -298,11 +298,6 @@ app.get(`${BASE_PATH}/visitor`, (_req, res) => {
 app.get(`${BASE_PATH}/admin`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/admin.html"));
 });
-
-app.get(`${BASE_PATH}/analytics`, (_req, res) => {
-  res.sendFile(path.resolve("apps/web/analytics.html"));
-});
-
 app.get(`${BASE_PATH}/notice`, (_req, res) => {
   res.redirect(`${BASE_PATH}/visitor`);
 });
