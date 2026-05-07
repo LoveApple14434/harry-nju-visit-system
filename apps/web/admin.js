@@ -15,6 +15,10 @@ const tabs = {
     button: document.getElementById("tabNotice"),
     panel: document.getElementById("panelNotice")
   }
+  ,analytics: {
+    button: document.getElementById("tabAnalytics"),
+    panel: document.getElementById("panelAnalytics")
+  }
 };
 
 const msgEl = document.getElementById("adminMsg");
@@ -702,6 +706,8 @@ nextMonthBtn.addEventListener("click", () => {
   shiftMonth(1);
   loadCalendar().catch((e) => setMsg(e.message || "加载失败"));
 });
+
+// analytics tab uses the tabs switcher; no redirect needed
 
 async function init() {
   loadVersion();
