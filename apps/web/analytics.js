@@ -42,8 +42,6 @@ async function loadDashboard() {
     document.getElementById("statPending").textContent = data.pending;
     document.getElementById("statApproved").textContent = data.approved;
     document.getElementById("statRejected").textContent = data.rejected;
-    document.getElementById("statAvgTime").textContent =
-      data.avgProcessingTime > 0 ? Math.round(data.avgProcessingTime) : "-";
     document.getElementById("approvalRateText").textContent =
       `通过率 ${data.approvalRate}%`;
 
@@ -228,7 +226,7 @@ async function loadFieldList() {
       return;
     }
 
-    const fields = result.fields.filter((f) => f.key !== "visit_date");
+    const fields = result.fields;
     const select = document.getElementById("fieldSelect");
 
     for (const field of fields) {
@@ -283,12 +281,12 @@ function renderFieldStats(field, data) {
     return;
   }
 
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const totalCount = data.reduce((sum, item) => sum + item.count, 0);
 
   let html = '<table class="stats-table"><thead><tr><th>值</th><th>计数</th><th>占比</th></tr></thead><tbody>';
 
   for (const item of data) {
-    const percentage = ((item.count / maxCount) * 100).toFixed(1);
+    const percentage = totalCount > 0 ? ((item.count / totalCount) * 100).toFixed(1) : "0.0";
     html += `
       <tr>
         <td>${escapeHtml(item.label || "-")}</td>
@@ -314,17 +312,15 @@ async function exportCSV() {
   try {
     const url = `${API_BASE}/analytics/export?fromDate=${fromDate}&toDate=${toDate}`;
     const response = await fetch(url);
-
     if (!response.ok) {
       showError("导出失败");
       return;
     }
-
     const blob = await response.blob();
     const downloadUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = downloadUrl;
-    link.download = `statistics_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `statistics_${new Date().toISOString().split("T")[0]}.xlsx`;
     link.click();
     URL.revokeObjectURL(downloadUrl);
   } catch (error) {

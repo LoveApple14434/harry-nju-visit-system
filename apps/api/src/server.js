@@ -1095,50 +1095,177 @@ app.get(`${BASE_PATH}/api/admin/analytics/field`, (req, res) => {
     return error(res, "fieldId 参数必须");
   }
 
-  const field = db.prepare("SELECT id, label, type FROM form_fields WHERE id = ? AND active = 1").get(fieldId);
+  const field = getActiveFields().find((item) => item.id === fieldId);
   if (!field) {
     return error(res, "字段不存在");
   }
 
   const visitDateField = getVisitDateField();
-  let sql = `
-    SELECT av.value_text, av.value_select, av.value_number, COUNT(*) AS count
-    FROM application_values av
-    WHERE av.field_id = ?
-  `;
+  const filterParts = [];
   const params = [fieldId];
 
   if (visitDateField && (fromDate || toDate)) {
-    sql += `
-      AND av.application_id IN (
-        SELECT application_id FROM application_values avd
-        WHERE avd.field_id = ?
-    `;
+    filterParts.push(`av.application_id IN (
+      SELECT application_id FROM application_values avd
+      WHERE avd.field_id = ?`);
     params.push(visitDateField.id);
     if (fromDate) {
-      sql += " AND substr(avd.value_text, 1, 10) >= ?";
+      filterParts.push("AND substr(avd.value_text, 1, 10) >= ?");
       params.push(fromDate);
     }
     if (toDate) {
-      sql += " AND substr(avd.value_text, 1, 10) <= ?";
+      filterParts.push("AND substr(avd.value_text, 1, 10) <= ?");
       params.push(toDate);
     }
-    sql += ")";
+    filterParts.push(")");
   }
 
-  sql += " GROUP BY av.value_text, av.value_select, av.value_number ORDER BY count DESC LIMIT 50";
+  const filterClause = filterParts.length > 0 ? ` AND ${filterParts.join(" ")}` : "";
 
-  const rows = db.prepare(sql).all(...params);
-  const data = rows.map((row) => ({
-    label: row.value_text || row.value_select || String(row.value_number || "-"),
-    count: row.count
-  }));
+  const formatNumber = (value) => {
+    if (!Number.isFinite(value)) {
+      return "-";
+    }
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  };
 
-  res.json({ success: true, field: { id: field.id, label: field.label }, data });
+  let data = [];
+
+  if (field.type === "select") {
+    const rows = db
+      .prepare(
+        `SELECT av.value_select AS value, COUNT(*) AS count
+         FROM application_values av
+         WHERE av.field_id = ?${filterClause}
+         GROUP BY av.value_select
+         ORDER BY count DESC, value ASC`
+      )
+      .all(...params);
+
+    const countMap = new Map(rows.map((row) => [row.value || "", row.count]));
+    const orderedOptions = Array.isArray(field.options) ? field.options : [];
+
+    for (const option of orderedOptions) {
+      const label = String(option);
+      data.push({ label, count: countMap.get(label) || 0 });
+      countMap.delete(label);
+    }
+
+    for (const [label, count] of countMap.entries()) {
+      data.push({ label: label || "未填写", count });
+    }
+  } else if (field.type === "date" || field.key === "visit_date") {
+    const rows = db
+      .prepare(
+        `SELECT substr(av.value_text, 1, 10) AS value, COUNT(*) AS count
+         FROM application_values av
+         WHERE av.field_id = ? AND av.value_text IS NOT NULL${filterClause}
+         GROUP BY substr(av.value_text, 1, 10)
+         ORDER BY value ASC`
+      )
+      .all(...params);
+
+    data = rows.map((row) => ({
+      label: row.value || "未填写",
+      count: row.count
+    }));
+  } else if (field.type === "time") {
+    const rows = db
+      .prepare(
+        `SELECT substr(av.value_text, 1, 2) AS value, COUNT(*) AS count
+         FROM application_values av
+         WHERE av.field_id = ? AND av.value_text IS NOT NULL${filterClause}
+         GROUP BY substr(av.value_text, 1, 2)
+         ORDER BY value ASC`
+      )
+      .all(...params);
+
+    data = rows.map((row) => ({
+      label: row.value ? `${row.value}:00` : "未填写",
+      count: row.count
+    }));
+  } else if (field.type === "number") {
+    const rows = db
+      .prepare(
+        `SELECT av.value_number AS value, COUNT(*) AS count
+         FROM application_values av
+         WHERE av.field_id = ? AND av.value_number IS NOT NULL${filterClause}
+         GROUP BY av.value_number
+         ORDER BY value ASC`
+      )
+      .all(...params)
+      .map((row) => ({ value: Number(row.value), count: row.count }))
+      .filter((row) => Number.isFinite(row.value));
+
+    if (rows.length === 0) {
+      data = [];
+    } else if (rows.length <= 8) {
+      data = rows.map((row) => ({
+        label: formatNumber(row.value),
+        count: row.count
+      }));
+    } else {
+      const minValue = field.numberMin !== null ? field.numberMin : rows[0].value;
+      const maxValue = field.numberMax !== null ? field.numberMax : rows[rows.length - 1].value;
+      const bucketCount = 8;
+      const span = maxValue - minValue;
+
+      if (!Number.isFinite(span) || span <= 0) {
+        data = rows.map((row) => ({
+          label: formatNumber(row.value),
+          count: row.count
+        }));
+      } else {
+        const bucketSize = span / bucketCount;
+        const buckets = Array.from({ length: bucketCount }, (_, index) => {
+          const start = minValue + index * bucketSize;
+          const end = index === bucketCount - 1 ? maxValue : minValue + (index + 1) * bucketSize;
+          return {
+            start,
+            end,
+            count: 0
+          };
+        });
+
+        for (const row of rows) {
+          const rawIndex = Math.floor((row.value - minValue) / bucketSize);
+          const index = Math.min(Math.max(rawIndex, 0), bucketCount - 1);
+          buckets[index].count += row.count;
+        }
+
+        data = buckets
+          .filter((bucket) => bucket.count > 0)
+          .map((bucket, index) => ({
+            label: index === bucketCount - 1
+              ? `${formatNumber(bucket.start)} - ${formatNumber(bucket.end)}`
+              : `${formatNumber(bucket.start)} - ${formatNumber(bucket.end)}`,
+            count: bucket.count
+          }));
+      }
+    }
+  } else {
+    const rows = db
+      .prepare(
+        `SELECT COALESCE(av.value_text, av.value_select, CAST(av.value_number AS TEXT)) AS value, COUNT(*) AS count
+         FROM application_values av
+         WHERE av.field_id = ?${filterClause}
+         GROUP BY COALESCE(av.value_text, av.value_select, CAST(av.value_number AS TEXT))
+         ORDER BY count DESC, value ASC
+         LIMIT 50`
+      )
+      .all(...params);
+
+    data = rows.map((row) => ({
+      label: row.value || "未填写",
+      count: row.count
+    }));
+  }
+
+  res.json({ success: true, field: { id: field.id, label: field.label, type: field.type }, data });
 });
 
 // 导出 API - CSV 导出
-app.get(`${BASE_PATH}/api/admin/analytics/export`, (req, res) => {
+app.get(`${BASE_PATH}/api/admin/analytics/export`, async (req, res) => {
   const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : "";
   const toDate = req.query.toDate ? String(req.query.toDate).trim() : "";
   const visitDateField = getVisitDateField();
@@ -1179,42 +1306,43 @@ app.get(`${BASE_PATH}/api/admin/analytics/export`, (req, res) => {
   const fields = getActiveFields();
   const fieldMap = new Map(fields.map((f) => [f.id, f]));
 
-  // CSV 标头
-  const headers = ["申请ID", "提交时间", "状态", "审批时间", ...fields.map((f) => f.label)];
-  const csvContent = [headers.map((h) => `"${h}"`).join(",")];
-
-  // 获取每个申请的字段值
   const valueStmt = db.prepare(
     "SELECT field_id, value_text, value_number, value_select FROM application_values WHERE application_id = ?"
   );
 
-  for (const row of rows) {
-    const values = valueStmt.all(row.id);
-    const valueMap = {};
+  // 使用 exceljs 生成 xlsx
+  try {
+    // lazy-require to avoid crash when module not installed
+    const ExcelModule = await import('exceljs');
+    const ExcelJS = ExcelModule.default || ExcelModule;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Analytics');
 
-    for (const v of values) {
-      const field = fieldMap.get(v.field_id);
-      if (field) {
-        valueMap[field.id] = v.value_text ?? v.value_number ?? v.value_select ?? "";
+    const headers = ['申请ID', '提交时间', '状态', '审批时间', ...fields.map((f) => f.label)];
+    sheet.addRow(headers);
+
+    for (const row of rows) {
+      const values = valueStmt.all(row.id);
+      const valueMap = {};
+      for (const v of values) {
+        const field = fieldMap.get(v.field_id);
+        if (field) {
+          valueMap[field.id] = v.value_text ?? v.value_number ?? v.value_select ?? '';
+        }
       }
+      const rowData = [row.id, row.created_at, row.status, row.decision_at || '-', ...fields.map((f) => valueMap[f.id] || '')];
+      sheet.addRow(rowData);
     }
 
-    const csvRow = [
-      row.id,
-      row.created_at,
-      row.status,
-      row.decision_at || "-",
-      ...fields.map((f) => valueMap[f.id] || "")
-    ];
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="analytics_${dayjs().format('YYYY-MM-DD_HHmmss')}.xlsx"`);
 
-    csvContent.push(
-      csvRow.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-    );
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error('excel export failed', e);
+    return error(res, '无法生成 Excel 导出：请先安装依赖（npm i exceljs）', 500);
   }
-
-  res.setHeader("Content-Type", "text/csv; charset=utf-8-sig");
-  res.setHeader("Content-Disposition", `attachment; filename="analytics_${dayjs().format("YYYY-MM-DD_HHmmss")}.csv"`);
-  res.send("\uFEFF" + csvContent.join("\n"));
 });
 
 // 统计仪表板汇总
@@ -1231,8 +1359,7 @@ app.get(`${BASE_PATH}/api/admin/analytics/dashboard`, (req, res) => {
         pending: 0,
         approved: 0,
         rejected: 0,
-        approvalRate: 0,
-        avgProcessingTime: 0
+        approvalRate: 0
       }
     });
   }
@@ -1262,25 +1389,6 @@ app.get(`${BASE_PATH}/api/admin/analytics/dashboard`, (req, res) => {
 
   const approvalRate = total > 0 ? ((approved / total) * 100).toFixed(2) : 0;
 
-  // 计算平均处理时间（单位：小时）
-  const timeRows = db
-    .prepare(
-      `SELECT AVG(julianday(a.decision_at) - julianday(a.created_at)) AS avg_days
-       FROM applications a
-       WHERE a.status != 'pending'
-       AND a.id IN (
-         SELECT DISTINCT application_id FROM application_values
-         WHERE field_id = ?
-         AND substr(value_text, 1, 10) >= ?
-         AND substr(value_text, 1, 10) <= ?
-       )`
-    )
-    .all(visitDateField.id, fromDate, toDate + "T23:59:59");
-
-  const avgProcessingTime = timeRows[0]?.avg_days
-    ? (Number(timeRows[0].avg_days) * 24).toFixed(2)
-    : 0;
-
   res.json({
     success: true,
     data: {
@@ -1288,8 +1396,7 @@ app.get(`${BASE_PATH}/api/admin/analytics/dashboard`, (req, res) => {
       pending,
       approved,
       rejected,
-      approvalRate: Number(approvalRate),
-      avgProcessingTime: Number(avgProcessingTime)
+      approvalRate: Number(approvalRate)
     }
   });
 });
