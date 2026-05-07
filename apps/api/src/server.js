@@ -299,6 +299,10 @@ app.get(`${BASE_PATH}/admin`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/admin.html"));
 });
 
+app.get(`${BASE_PATH}/analytics`, (_req, res) => {
+  res.sendFile(path.resolve("apps/web/analytics.html"));
+});
+
 app.get(`${BASE_PATH}/notice`, (_req, res) => {
   res.redirect(`${BASE_PATH}/visitor`);
 });
@@ -1006,6 +1010,293 @@ app.get(`${BASE_PATH}/api/admin/calendar`, (req, res) => {
   }
 
   res.json({ success: true, month, byDay });
+});
+
+// 统计 API - 按状态统计
+app.get(`${BASE_PATH}/api/admin/analytics/status`, (req, res) => {
+  const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : "";
+  const toDate = req.query.toDate ? String(req.query.toDate).trim() : "";
+  const visitDateField = getVisitDateField();
+
+  if (!visitDateField) {
+    return res.json({ success: true, data: { pending: 0, approved: 0, rejected: 0 } });
+  }
+
+  let sql = "SELECT status, COUNT(*) AS count FROM applications";
+  const params = [];
+
+  if (fromDate || toDate) {
+    sql += " WHERE id IN (SELECT DISTINCT application_id FROM application_values WHERE field_id = ?";
+    params.push(visitDateField.id);
+    if (fromDate) {
+      sql += " AND substr(value_text, 1, 10) >= ?";
+      params.push(fromDate);
+    }
+    if (toDate) {
+      sql += " AND substr(value_text, 1, 10) <= ?";
+      params.push(toDate);
+    }
+    sql += ")";
+  }
+
+  sql += " GROUP BY status";
+
+  const rows = db.prepare(sql).all(...params);
+  const result = { pending: 0, approved: 0, rejected: 0 };
+
+  for (const row of rows) {
+    if (row.status === "pending") result.pending = row.count;
+    else if (row.status === "approved") result.approved = row.count;
+    else if (row.status === "rejected") result.rejected = row.count;
+  }
+
+  res.json({ success: true, data: result });
+});
+
+// 统计 API - 按日期统计（日/周/月）
+app.get(`${BASE_PATH}/api/admin/analytics/timeline`, (req, res) => {
+  const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : dayjs().subtract(30, "days").format("YYYY-MM-DD");
+  const toDate = req.query.toDate ? String(req.query.toDate).trim() : dayjs().format("YYYY-MM-DD");
+  const granularity = req.query.granularity || "day"; // day, week, month
+  const visitDateField = getVisitDateField();
+
+  if (!visitDateField) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT substr(av.value_text, 1, 10) AS visit_date, a.status, COUNT(*) AS count
+       FROM applications a
+       JOIN application_values av ON av.application_id = a.id
+       WHERE av.field_id = ?
+       AND av.value_text >= ?
+       AND av.value_text <= ?
+       GROUP BY substr(av.value_text, 1, 10), a.status
+       ORDER BY visit_date ASC`
+    )
+    .all(visitDateField.id, fromDate, toDate + "T23:59:59");
+
+  const grouped = {};
+  for (const row of rows) {
+    if (!grouped[row.visit_date]) {
+      grouped[row.visit_date] = { date: row.visit_date, pending: 0, approved: 0, rejected: 0, total: 0 };
+    }
+    grouped[row.visit_date][row.status] = row.count;
+    grouped[row.visit_date].total += row.count;
+  }
+
+  const data = Object.values(grouped);
+  res.json({ success: true, data, granularity, fromDate, toDate });
+});
+
+// 统计 API - 按自定义字段统计（动态）
+app.get(`${BASE_PATH}/api/admin/analytics/field`, (req, res) => {
+  const fieldId = Number(req.query.fieldId);
+  const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : "";
+  const toDate = req.query.toDate ? String(req.query.toDate).trim() : "";
+
+  if (!fieldId) {
+    return error(res, "fieldId 参数必须");
+  }
+
+  const field = db.prepare("SELECT id, label, type FROM form_fields WHERE id = ? AND active = 1").get(fieldId);
+  if (!field) {
+    return error(res, "字段不存在");
+  }
+
+  const visitDateField = getVisitDateField();
+  let sql = `
+    SELECT av.value_text, av.value_select, av.value_number, COUNT(*) AS count
+    FROM application_values av
+    WHERE av.field_id = ?
+  `;
+  const params = [fieldId];
+
+  if (visitDateField && (fromDate || toDate)) {
+    sql += `
+      AND av.application_id IN (
+        SELECT application_id FROM application_values avd
+        WHERE avd.field_id = ?
+    `;
+    params.push(visitDateField.id);
+    if (fromDate) {
+      sql += " AND substr(avd.value_text, 1, 10) >= ?";
+      params.push(fromDate);
+    }
+    if (toDate) {
+      sql += " AND substr(avd.value_text, 1, 10) <= ?";
+      params.push(toDate);
+    }
+    sql += ")";
+  }
+
+  sql += " GROUP BY av.value_text, av.value_select, av.value_number ORDER BY count DESC LIMIT 50";
+
+  const rows = db.prepare(sql).all(...params);
+  const data = rows.map((row) => ({
+    label: row.value_text || row.value_select || String(row.value_number || "-"),
+    count: row.count
+  }));
+
+  res.json({ success: true, field: { id: field.id, label: field.label }, data });
+});
+
+// 导出 API - CSV 导出
+app.get(`${BASE_PATH}/api/admin/analytics/export`, (req, res) => {
+  const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : "";
+  const toDate = req.query.toDate ? String(req.query.toDate).trim() : "";
+  const visitDateField = getVisitDateField();
+
+  let sql = `
+    SELECT a.id, a.created_at, a.status, a.decision_at
+    FROM applications a
+  `;
+  const params = [];
+  const conditions = [];
+
+  if (visitDateField && (fromDate || toDate)) {
+    conditions.push(
+      `a.id IN (
+        SELECT application_id FROM application_values
+        WHERE field_id = ?
+      `
+    );
+    params.push(visitDateField.id);
+    if (fromDate) {
+      conditions[0] += " AND substr(value_text, 1, 10) >= ?";
+      params.push(fromDate);
+    }
+    if (toDate) {
+      conditions[0] += " AND substr(value_text, 1, 10) <= ?";
+      params.push(toDate);
+    }
+    conditions[0] += ")";
+  }
+
+  if (conditions.length > 0) {
+    sql += " WHERE " + conditions.join(" AND ");
+  }
+
+  sql += " ORDER BY a.id DESC";
+
+  const rows = db.prepare(sql).all(...params);
+  const fields = getActiveFields();
+  const fieldMap = new Map(fields.map((f) => [f.id, f]));
+
+  // CSV 标头
+  const headers = ["申请ID", "提交时间", "状态", "审批时间", ...fields.map((f) => f.label)];
+  const csvContent = [headers.map((h) => `"${h}"`).join(",")];
+
+  // 获取每个申请的字段值
+  const valueStmt = db.prepare(
+    "SELECT field_id, value_text, value_number, value_select FROM application_values WHERE application_id = ?"
+  );
+
+  for (const row of rows) {
+    const values = valueStmt.all(row.id);
+    const valueMap = {};
+
+    for (const v of values) {
+      const field = fieldMap.get(v.field_id);
+      if (field) {
+        valueMap[field.id] = v.value_text ?? v.value_number ?? v.value_select ?? "";
+      }
+    }
+
+    const csvRow = [
+      row.id,
+      row.created_at,
+      row.status,
+      row.decision_at || "-",
+      ...fields.map((f) => valueMap[f.id] || "")
+    ];
+
+    csvContent.push(
+      csvRow.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+    );
+  }
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8-sig");
+  res.setHeader("Content-Disposition", `attachment; filename="analytics_${dayjs().format("YYYY-MM-DD_HHmmss")}.csv"`);
+  res.send("\uFEFF" + csvContent.join("\n"));
+});
+
+// 统计仪表板汇总
+app.get(`${BASE_PATH}/api/admin/analytics/dashboard`, (req, res) => {
+  const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : dayjs().subtract(30, "days").format("YYYY-MM-DD");
+  const toDate = req.query.toDate ? String(req.query.toDate).trim() : dayjs().format("YYYY-MM-DD");
+  const visitDateField = getVisitDateField();
+
+  if (!visitDateField) {
+    return res.json({
+      success: true,
+      data: {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        approvalRate: 0,
+        avgProcessingTime: 0
+      }
+    });
+  }
+
+  const statusRows = db
+    .prepare(
+      `SELECT a.status, COUNT(*) AS count
+       FROM applications a
+       WHERE a.id IN (
+         SELECT DISTINCT application_id FROM application_values
+         WHERE field_id = ?
+         AND substr(value_text, 1, 10) >= ?
+         AND substr(value_text, 1, 10) <= ?
+       )
+       GROUP BY a.status`
+    )
+    .all(visitDateField.id, fromDate, toDate + "T23:59:59");
+
+  let total = 0, pending = 0, approved = 0, rejected = 0;
+
+  for (const row of statusRows) {
+    total += row.count;
+    if (row.status === "pending") pending = row.count;
+    else if (row.status === "approved") approved = row.count;
+    else if (row.status === "rejected") rejected = row.count;
+  }
+
+  const approvalRate = total > 0 ? ((approved / total) * 100).toFixed(2) : 0;
+
+  // 计算平均处理时间（单位：小时）
+  const timeRows = db
+    .prepare(
+      `SELECT AVG(julianday(a.decision_at) - julianday(a.created_at)) AS avg_days
+       FROM applications a
+       WHERE a.status != 'pending'
+       AND a.id IN (
+         SELECT DISTINCT application_id FROM application_values
+         WHERE field_id = ?
+         AND substr(value_text, 1, 10) >= ?
+         AND substr(value_text, 1, 10) <= ?
+       )`
+    )
+    .all(visitDateField.id, fromDate, toDate + "T23:59:59");
+
+  const avgProcessingTime = timeRows[0]?.avg_days
+    ? (Number(timeRows[0].avg_days) * 24).toFixed(2)
+    : 0;
+
+  res.json({
+    success: true,
+    data: {
+      total,
+      pending,
+      approved,
+      rejected,
+      approvalRate: Number(approvalRate),
+      avgProcessingTime: Number(avgProcessingTime)
+    }
+  });
 });
 
 app.use((err, _req, res, _next) => {

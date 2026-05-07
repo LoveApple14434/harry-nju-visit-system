@@ -703,6 +703,14 @@ nextMonthBtn.addEventListener("click", () => {
   loadCalendar().catch((e) => setMsg(e.message || "加载失败"));
 });
 
+// 统计页面导航
+const tabAnalyticsBtn = document.getElementById("tabAnalytics");
+if (tabAnalyticsBtn) {
+  tabAnalyticsBtn.addEventListener("click", () => {
+    window.location.href = `${BASE_PATH}/analytics`;
+  });
+}
+
 async function init() {
   loadVersion();
   switchTab("list");
