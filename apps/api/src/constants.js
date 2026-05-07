@@ -5,4 +5,4 @@ export const ALLOWED_MIME = [
   "image/jpeg",
   "image/png"
 ];
-export const FIELD_TYPES = ["text", "number", "select", "file"];
+export const FIELD_TYPES = ["text", "number", "date", "time", "select", "file"];

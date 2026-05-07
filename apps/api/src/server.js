@@ -555,7 +555,7 @@ app.post(`${BASE_PATH}/api/public/applications`, (req, res) => {
       insertValue.run({
         application_id: applicationId,
         field_id: field.id,
-        value_text: field.type === "text" ? String(raw) : null,
+        value_text: ["text", "date", "time"].includes(field.type) ? String(raw) : null,
         value_number: field.type === "number" ? Number(raw) : null,
         value_select: field.type === "select" ? String(raw) : null,
         created_at: now
