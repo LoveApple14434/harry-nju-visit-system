@@ -209,11 +209,11 @@ function validateFieldDefinition(input) {
 }
 
 function isFixedFieldByKey(key) {
-  return ["visit_time", "phone_number"].includes(String(key || "").trim());
+  return ["visit_date", "phone_number"].includes(String(key || "").trim());
 }
 
-function getVisitTimeField() {
-  return db.prepare("SELECT id, field_key, label FROM form_fields WHERE active = 1 AND field_key = 'visit_time' LIMIT 1").get();
+function getVisitDateField() {
+  return db.prepare("SELECT id, field_key, label FROM form_fields WHERE active = 1 AND field_key = 'visit_date' LIMIT 1").get();
 }
 
 function getFieldByKey(key) {
@@ -335,7 +335,7 @@ app.get(`${BASE_PATH}/api/public/applications/query`, (req, res) => {
     return error(res, "系统缺少手机号码字段", 500);
   }
 
-  const visitTimeField = getFieldByKey("visit_time");
+  const visitDateField = getFieldByKey("visit_date");
   const visitorNameField = getFieldByKey("visitor_name");
   const companyField = getFieldByKey("company_name");
 
@@ -349,7 +349,7 @@ app.get(`${BASE_PATH}/api/public/applications/query`, (req, res) => {
          a.reject_reason_code,
          a.reject_reason_text,
          (SELECT avn.value_text FROM application_values avn WHERE avn.application_id = a.id AND avn.field_id = ? LIMIT 1) AS visitor_name,
-         (SELECT avt.value_text FROM application_values avt WHERE avt.application_id = a.id AND avt.field_id = ? LIMIT 1) AS visit_time,
+         (SELECT avt.value_text FROM application_values avt WHERE avt.application_id = a.id AND avt.field_id = ? LIMIT 1) AS visit_date,
          (SELECT avc.value_text FROM application_values avc WHERE avc.application_id = a.id AND avc.field_id = ? LIMIT 1) AS company_name
        FROM applications a
        WHERE EXISTS (
@@ -363,7 +363,7 @@ app.get(`${BASE_PATH}/api/public/applications/query`, (req, res) => {
     )
     .all(
       visitorNameField ? visitorNameField.id : -1,
-      visitTimeField ? visitTimeField.id : -1,
+      visitDateField ? visitDateField.id : -1,
       companyField ? companyField.id : -1,
       phoneField.id,
       phone
@@ -376,7 +376,7 @@ app.get(`${BASE_PATH}/api/public/applications/query`, (req, res) => {
       rejectReasonCode: row.reject_reason_code,
       rejectReasonText: row.reject_reason_text,
       visitorName: row.visitor_name || "-",
-      visitTime: row.visit_time || "-",
+      visitDate: row.visit_date || "-",
       companyName: row.company_name || "-"
     }));
 
@@ -755,7 +755,7 @@ app.get(`${BASE_PATH}/api/admin/applications`, (req, res) => {
   const fromDate = req.query.fromDate ? String(req.query.fromDate).trim() : "";
   const toDate = req.query.toDate ? String(req.query.toDate).trim() : "";
   const q = req.query.q ? String(req.query.q).trim() : "";
-  const visitTimeField = getVisitTimeField();
+  const visitDateField = getVisitDateField();
 
   if (fromDate && toDate && fromDate > toDate) {
     return error(res, "开始日期不能晚于结束日期");
@@ -763,8 +763,8 @@ app.get(`${BASE_PATH}/api/admin/applications`, (req, res) => {
 
   const conditions = [];
   const params = [];
-  if (!visitTimeField) {
-    return error(res, "系统缺少来访时间字段");
+  if (!visitDateField) {
+    return error(res, "系统缺少来访日期字段");
   }
   if (fromDate) {
     conditions.push(
@@ -775,7 +775,7 @@ app.get(`${BASE_PATH}/api/admin/applications`, (req, res) => {
         AND substr(avf.value_text, 1, 10) >= ?
       )`
     );
-    params.push(visitTimeField.id, fromDate);
+    params.push(visitDateField.id, fromDate);
   }
   if (toDate) {
     conditions.push(
@@ -786,7 +786,7 @@ app.get(`${BASE_PATH}/api/admin/applications`, (req, res) => {
         AND substr(avt.value_text, 1, 10) <= ?
       )`
     );
-    params.push(visitTimeField.id, toDate);
+    params.push(visitDateField.id, toDate);
   }
   const status = req.query.status ? String(req.query.status).trim() : "";
   if (status) {
@@ -929,9 +929,9 @@ app.get(`${BASE_PATH}/api/admin/calendar`, (req, res) => {
   const month = String(req.query.month || dayjs().format("YYYY-MM"));
   const start = dayjs(`${month}-01`).startOf("month");
   const end = start.endOf("month");
-  const visitTimeField = getVisitTimeField();
+  const visitDateField = getVisitDateField();
 
-  if (!visitTimeField) {
+  if (!visitDateField) {
     return res.json({ success: true, month, byDay: {} });
   }
 
@@ -946,7 +946,7 @@ app.get(`${BASE_PATH}/api/admin/calendar`, (req, res) => {
        GROUP BY substr(av.value_text, 1, 10)
        ORDER BY day ASC`
     )
-    .all(visitTimeField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
+    .all(visitDateField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
 
   const byDay = {};
   for (const row of rows) {
@@ -964,7 +964,7 @@ app.get(`${BASE_PATH}/api/admin/calendar`, (req, res) => {
        AND a.status = 'approved'
        ORDER BY a.id DESC`
     )
-    .all(visitTimeField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
+    .all(visitDateField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
 
   const fieldMap = new Map(getActiveFields().map((f) => [f.id, f]));
   const valueStmt = db.prepare(
@@ -996,7 +996,7 @@ app.get(`${BASE_PATH}/api/admin/calendar`, (req, res) => {
        GROUP BY substr(av.value_text, 1, 10)
        ORDER BY day ASC`
     )
-    .all(visitTimeField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
+    .all(visitDateField.id, start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD") + "T23:59:59");
 
   for (const row of pendingRows) {
     if (!byDay[row.day]) {

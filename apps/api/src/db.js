@@ -79,7 +79,7 @@ export function initDb() {
   seedDefaults();
   ensureCompanyField();
   ensurePhoneField();
-  ensureVisitTimeField();
+  ensureVisitDateField();
   ensureVisitorCountRange();
   ensureNoticeSetting();
 
@@ -132,9 +132,9 @@ function seedDefaults() {
       updated_at: now
     },
     {
-      field_key: "visit_time",
-      label: "来访时间",
-      type: "text",
+      field_key: "visit_date",
+      label: "来访日期",
+      type: "date",
       required: 1,
       options_json: null,
       sort_order: 2,
@@ -233,16 +233,25 @@ function ensureCompanyField() {
   ).run("company_name", "来访单位名称", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
 }
 
-function ensureVisitTimeField() {
+function ensureVisitDateField() {
   const now = new Date().toISOString();
-  const existing = db
-    .prepare("SELECT id, active, required, type FROM form_fields WHERE field_key = 'visit_time' ORDER BY id ASC LIMIT 1")
-    .get();
+  const existingRows = db
+    .prepare(
+      "SELECT id, field_key, active FROM form_fields WHERE field_key IN ('visit_date', 'visit_time') ORDER BY CASE field_key WHEN 'visit_date' THEN 0 ELSE 1 END, id ASC"
+    )
+    .all();
 
-  if (existing) {
+  if (existingRows.length > 0) {
+    const primary = existingRows[0];
     db.prepare(
-      "UPDATE form_fields SET active = 1, required = 1, type = 'text', label = '来访时间', updated_at = ? WHERE id = ?"
-    ).run(now, existing.id);
+      "UPDATE form_fields SET field_key = 'visit_date', active = 1, required = 1, type = 'date', label = '来访日期', updated_at = ? WHERE id = ?"
+    ).run(now, primary.id);
+
+    for (const row of existingRows.slice(1)) {
+      if (row.field_key === "visit_time") {
+        db.prepare("UPDATE form_fields SET active = 0, updated_at = ? WHERE id = ?").run(now, row.id);
+      }
+    }
     return;
   }
 
@@ -250,7 +259,7 @@ function ensureVisitTimeField() {
   db.prepare(
     `INSERT INTO form_fields (field_key, label, type, required, options_json, sort_order, active, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
-  ).run("visit_time", "来访时间", "text", 1, null, Number(maxOrder || 0) + 1, now, now);
+  ).run("visit_date", "来访日期", "date", 1, null, Number(maxOrder || 0) + 1, now, now);
 }
 
 function ensureNoticeSetting() {

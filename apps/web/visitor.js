@@ -305,22 +305,18 @@ function renderFields() {
       renderUploadList();
     } else {
       input = document.createElement("input");
-      if (field.key === "visit_time") {
-        input.type = "date";
-      } else {
-        if (field.type === "number") {
-          input.type = "number";
-          if (field.numberMin !== null && field.numberMin !== undefined) {
-            input.min = String(field.numberMin);
-          }
-          if (field.numberMax !== null && field.numberMax !== undefined) {
-            input.max = String(field.numberMax);
-          }
-        } else if (field.type === "date" || field.type === "time") {
-          input.type = field.type;
-        } else {
-          input.type = "text";
+      if (field.type === "number") {
+        input.type = "number";
+        if (field.numberMin !== null && field.numberMin !== undefined) {
+          input.min = String(field.numberMin);
         }
+        if (field.numberMax !== null && field.numberMax !== undefined) {
+          input.max = String(field.numberMax);
+        }
+      } else if (field.type === "date" || field.type === "time") {
+        input.type = field.type;
+      } else {
+        input.type = "text";
       }
     }
 

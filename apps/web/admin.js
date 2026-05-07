@@ -72,7 +72,7 @@ const REJECT_REASON_LABELS = {
 };
 
 function isFixedFieldKey(key) {
-  return ["visit_time", "phone_number"].includes(String(key || "").trim());
+  return ["visit_date", "phone_number"].includes(String(key || "").trim());
 }
 
 let fieldsCache = [];

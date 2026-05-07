@@ -94,7 +94,7 @@ function renderRows(items) {
     tr.innerHTML = `
       <td>#${item.id}</td>
       <td>${item.visitorName || "-"}</td>
-      <td>${item.visitTime || "-"}</td>
+      <td>${item.visitDate || "-"}</td>
       <td>${item.companyName || "-"}</td>
       <td><span class="status-pill ${statusClass(item.status)}">${statusText}</span></td>
       <td>${formatTime(item.createdAt)}</td>
