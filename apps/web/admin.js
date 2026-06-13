@@ -14,14 +14,17 @@ const tabs = {
   notice: {
     button: document.getElementById("tabNotice"),
     panel: document.getElementById("panelNotice")
-  }
-  ,analytics: {
+  },
+  analytics: {
     button: document.getElementById("tabAnalytics"),
     panel: document.getElementById("panelAnalytics")
   }
 };
 
 const msgEl = document.getElementById("adminMsg");
+const authStateEl = document.getElementById("authState");
+const authUserEl = document.getElementById("authUser");
+const logoutBtn = document.getElementById("logoutBtn");
 const fieldRows = document.getElementById("fieldRows");
 const appRows = document.getElementById("appRows");
 const calendarEl = document.getElementById("calendar");
@@ -112,6 +115,25 @@ function setMsg(text, ok = false) {
   msgEl.textContent = text;
 }
 
+function getCurrentAdminPath() {
+  return `${window.location.pathname}${window.location.search}`;
+}
+
+function redirectToCasLogin() {
+  const loginUrl = new URL(`${window.location.origin}${BASE_PATH}/api/admin/cas/login`);
+  loginUrl.searchParams.set("redirect", getCurrentAdminPath());
+  window.location.assign(loginUrl.toString());
+}
+
+async function apiFetch(input, init = {}) {
+  const res = await fetch(input, init);
+  if (res.status === 401 || res.status === 403) {
+    redirectToCasLogin();
+    throw new Error("未登录或登录已过期，正在跳转到 CAS 登录");
+  }
+  return res;
+}
+
 async function loadVersion() {
   if (!debugVersionEl) {
     return;
@@ -125,6 +147,25 @@ async function loadVersion() {
     debugVersionEl.textContent = `版本: v${data.version} | 路径: ${data.basePath}`;
   } catch (_e) {
     debugVersionEl.textContent = "版本: 获取失败";
+  }
+}
+
+async function loadAuthSession() {
+  const res = await apiFetch(`${BASE_PATH}/api/admin/session`);
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.message || "加载认证状态失败");
+  }
+
+  const user = data.session?.displayName || data.session?.username || "管理员";
+  if (authStateEl) {
+    authStateEl.textContent = "CAS 已登录";
+  }
+  if (authUserEl) {
+    authUserEl.textContent = `当前账号：${user}`;
+  }
+  if (logoutBtn) {
+    logoutBtn.classList.remove("hidden");
   }
 }
 
@@ -268,7 +309,7 @@ document.getElementById("range7dBtn").addEventListener("click", () => setQuickRa
 document.getElementById("range30dBtn").addEventListener("click", () => setQuickRange(30));
 
 async function loadFields() {
-  const res = await fetch(`${BASE_PATH}/api/admin/fields`);
+  const res = await apiFetch(`${BASE_PATH}/api/admin/fields`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载字段失败");
@@ -307,7 +348,7 @@ async function loadFields() {
       if (!confirm("确定删除该字段？")) {
         return;
       }
-      const r = await fetch(`${BASE_PATH}/api/admin/fields/${id}`, { method: "DELETE" });
+      const r = await apiFetch(`${BASE_PATH}/api/admin/fields/${id}`, { method: "DELETE" });
       const d = await r.json();
       if (!d.success) {
         return setMsg(d.message || "删除失败");
@@ -355,7 +396,7 @@ async function moveField(id, step) {
   cloned.splice(targetIdx, 0, item);
   const orderedIds = cloned.map((f) => f.id);
 
-  const res = await fetch(`${BASE_PATH}/api/admin/fields/reorder`, {
+  const res = await apiFetch(`${BASE_PATH}/api/admin/fields/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orderedIds })
@@ -411,7 +452,7 @@ async function addField() {
     payload.sortOrder = editingFieldId;
   }
 
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -453,7 +494,7 @@ async function loadApplications(page = listState.page) {
     params.set("q", keyword);
   }
 
-  const res = await fetch(`${BASE_PATH}/api/admin/applications?${params.toString()}`);
+  const res = await apiFetch(`${BASE_PATH}/api/admin/applications?${params.toString()}`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载申请失败");
@@ -559,7 +600,7 @@ async function loadApplications(page = listState.page) {
 }
 
 async function decideApplication(id, payload) {
-  const res = await fetch(`${BASE_PATH}/api/admin/applications/${id}/decision`, {
+  const res = await apiFetch(`${BASE_PATH}/api/admin/applications/${id}/decision`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -643,7 +684,7 @@ function renderCalendar(month, byDay) {
 
 async function loadCalendar() {
   const month = calMonth.value.trim();
-  const res = await fetch(`${BASE_PATH}/api/admin/calendar?month=${encodeURIComponent(month)}`);
+  const res = await apiFetch(`${BASE_PATH}/api/admin/calendar?month=${encodeURIComponent(month)}`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载日历失败");
@@ -652,7 +693,7 @@ async function loadCalendar() {
 }
 
 async function loadNotice() {
-  const res = await fetch(`${BASE_PATH}/api/admin/notice`);
+  const res = await apiFetch(`${BASE_PATH}/api/admin/notice`);
   const data = await res.json();
   if (!data.success) {
     throw new Error(data.message || "加载须知失败");
@@ -662,7 +703,7 @@ async function loadNotice() {
 
 async function saveNotice() {
   const content = noticeContentInput.value || "";
-  const res = await fetch(`${BASE_PATH}/api/admin/notice`, {
+  const res = await apiFetch(`${BASE_PATH}/api/admin/notice`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content })
@@ -677,6 +718,12 @@ async function saveNotice() {
 saveNoticeBtn.addEventListener("click", () => {
   saveNotice().catch((e) => setMsg(e.message || "保存失败"));
 });
+
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", () => {
+    window.location.assign(`${BASE_PATH}/api/admin/cas/logout`);
+  });
+}
 
 document.getElementById("loadCalBtn").addEventListener("click", () => {
   loadCalendar().catch((e) => setMsg(e.message || "加载失败"));
@@ -714,6 +761,7 @@ async function init() {
   switchTab("list");
   resetFieldForm();
   initMonth();
+  await loadAuthSession();
   await loadNotice();
   await loadFields();
   await loadApplications(1);

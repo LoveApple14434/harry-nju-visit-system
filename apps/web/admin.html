@@ -45,6 +45,13 @@
     <div class="container">
       <h1>后台管理员端 <span class="tag">Demo</span></h1>
       <p id="debugVersion" class="version-debug">版本: 加载中...</p>
+      <div class="auth-bar">
+        <div class="auth-status">
+          <span id="authState" class="tag">CAS 校验中</span>
+          <span id="authUser" class="auth-user"></span>
+        </div>
+        <button id="logoutBtn" class="secondary hidden" type="button">CAS 登出</button>
+      </div>
       <div class="nav">
         <button id="tabFields">字段配置</button>
         <button id="tabList" class="active">申请列表</button>

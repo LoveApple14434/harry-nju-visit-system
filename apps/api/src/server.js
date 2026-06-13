@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import multer from "multer";
 import dayjs from "dayjs";
 import db, { initDb } from "./db.js";
@@ -12,6 +13,14 @@ const DEFAULT_CONFIG = {
   port: 3000,
   basePath: "/visit"
 };
+
+const CAS_BASE_URL = "https://authserver.nju.edu.cn/authserver";
+const CAS_LOGIN_URL = `${CAS_BASE_URL}/login`;
+const CAS_LOGOUT_URL = `${CAS_BASE_URL}/logout`;
+const CAS_VALIDATE_URL = `${CAS_BASE_URL}/serviceValidate`;
+const ADMIN_SESSION_COOKIE = "visit_admin_session";
+const ADMIN_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 
 function normalizeBasePath(rawPath) {
   const text = String(rawPath ?? "").trim();
@@ -65,6 +74,7 @@ const REJECT_REASONS = {
 initDb();
 
 app.use(cors());
+app.set("trust proxy", true);
 app.use(express.json({ limit: "2mb" }));
 
 const storage = multer.diskStorage({
@@ -240,6 +250,180 @@ function error(res, message, code = 400) {
   res.status(code).json({ success: false, message });
 }
 
+function getRequestOrigin(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const protocol = forwardedProto || (req.secure ? "https" : "http");
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const host = forwardedHost || req.get("host");
+  return `${protocol}://${host}`;
+}
+
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  String(cookieHeader || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const index = part.indexOf("=");
+      if (index === -1) {
+        return;
+      }
+      const key = decodeURIComponent(part.slice(0, index).trim());
+      const value = decodeURIComponent(part.slice(index + 1).trim());
+      cookies[key] = value;
+    });
+  return cookies;
+}
+
+function sanitizeAdminRedirect(rawPath) {
+  const fallback = `${BASE_PATH}/admin`;
+  const text = String(rawPath || "").trim();
+  if (!text) {
+    return fallback;
+  }
+
+  const normalized = text.startsWith("/") ? text : `/${text}`;
+  const basePrefix = BASE_PATH || "/";
+  const isUnderBasePath = basePrefix === "/" || normalized === basePrefix || normalized.startsWith(`${basePrefix}/`);
+  if (!isUnderBasePath) {
+    return fallback;
+  }
+  if (normalized.startsWith("//")) {
+    return fallback;
+  }
+  return normalized;
+}
+
+function signAdminSession(payload) {
+  const body = Buffer.from(JSON.stringify(payload), "utf-8").toString("base64url");
+  const signature = crypto.createHmac("sha256", ADMIN_SESSION_SECRET).update(body).digest("base64url");
+  return `${body}.${signature}`;
+}
+
+function verifyAdminSession(token) {
+  if (!token || !token.includes(".")) {
+    return null;
+  }
+
+  const [body, signature] = token.split(".");
+  const expected = crypto.createHmac("sha256", ADMIN_SESSION_SECRET).update(body).digest("base64url");
+  const provided = Buffer.from(signature);
+  const wanted = Buffer.from(expected);
+  if (provided.length !== wanted.length || !crypto.timingSafeEqual(provided, wanted)) {
+    return null;
+  }
+
+  try {
+    const session = JSON.parse(Buffer.from(body, "base64url").toString("utf-8"));
+    if (!session || typeof session !== "object") {
+      return null;
+    }
+    if (!session.exp || Date.now() > session.exp) {
+      return null;
+    }
+    return session;
+  } catch (_err) {
+    return null;
+  }
+}
+
+function readAdminSession(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  return verifyAdminSession(cookies[ADMIN_SESSION_COOKIE]);
+}
+
+function setAdminSession(res, session, secure) {
+  res.cookie(ADMIN_SESSION_COOKIE, signAdminSession(session), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: BASE_PATH || "/",
+    maxAge: ADMIN_SESSION_TTL_MS
+  });
+}
+
+function clearAdminSession(res, secure) {
+  res.clearCookie(ADMIN_SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: BASE_PATH || "/"
+  });
+}
+
+function buildCasServiceUrl(req, redirectPath) {
+  const serviceUrl = new URL(`${getRequestOrigin(req)}${withBasePath("/api/admin/cas/callback")}`);
+  if (redirectPath) {
+    serviceUrl.searchParams.set("redirect", sanitizeAdminRedirect(redirectPath));
+  }
+  return serviceUrl.toString();
+}
+
+function buildCasLoginUrl(serviceUrl) {
+  const loginUrl = new URL(CAS_LOGIN_URL);
+  loginUrl.searchParams.set("service", serviceUrl);
+  return loginUrl.toString();
+}
+
+function buildCasLogoutUrl(serviceUrl) {
+  const logoutUrl = new URL(CAS_LOGOUT_URL);
+  logoutUrl.searchParams.set("service", serviceUrl);
+  return logoutUrl.toString();
+}
+
+function parseCasUser(xml) {
+  const successMatch = xml.match(/<cas:user>([^<]+)<\/cas:user>/i);
+  if (successMatch) {
+    return successMatch[1].trim();
+  }
+
+  const failureMatch = xml.match(/<cas:authenticationFailure[^>]*>([\s\S]*?)<\/cas:authenticationFailure>/i);
+  if (failureMatch) {
+    const failureText = failureMatch[1].replace(/<[^>]+>/g, "").trim();
+    throw new Error(failureText || "CAS 登录校验失败");
+  }
+
+  throw new Error("CAS 登录校验失败");
+}
+
+async function validateCasTicket(ticket, serviceUrl) {
+  const validateUrl = new URL(CAS_VALIDATE_URL);
+  validateUrl.searchParams.set("service", serviceUrl);
+  validateUrl.searchParams.set("ticket", ticket);
+
+  const response = await fetch(validateUrl.toString(), {
+    headers: {
+      Accept: "application/xml"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("CAS 认证中心校验失败");
+  }
+
+  const xml = await response.text();
+  return parseCasUser(xml);
+}
+
+function requireAdminPageSession(req, res, next) {
+  const session = readAdminSession(req);
+  if (!session) {
+    return res.redirect(buildCasLoginUrl(buildCasServiceUrl(req, `${BASE_PATH}/admin`)));
+  }
+  req.adminSession = session;
+  return next();
+}
+
+function requireAdminApiSession(req, res, next) {
+  const session = readAdminSession(req);
+  if (!session) {
+    return error(res, "未登录或登录已过期", 401);
+  }
+  req.adminSession = session;
+  return next();
+}
+
 function withBasePath(urlPath) {
   if (!urlPath.startsWith("/")) {
     return `${BASE_PATH}/${urlPath}`;
@@ -295,7 +479,7 @@ app.get(`${BASE_PATH}/visitor`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/visitor.html"));
 });
 
-app.get(`${BASE_PATH}/admin`, (_req, res) => {
+app.get(`${BASE_PATH}/admin`, requireAdminPageSession, (_req, res) => {
   res.sendFile(path.resolve("apps/web/admin.html"));
 });
 app.get(`${BASE_PATH}/notice`, (_req, res) => {
@@ -380,6 +564,57 @@ app.get(`${BASE_PATH}/api/public/applications/query`, (req, res) => {
     }));
 
   res.json({ success: true, phone, total: items.length, items });
+});
+
+app.get(`${BASE_PATH}/api/admin/cas/login`, (req, res) => {
+  const redirectPath = sanitizeAdminRedirect(req.query.redirect);
+  const serviceUrl = buildCasServiceUrl(req, redirectPath);
+  res.redirect(buildCasLoginUrl(serviceUrl));
+});
+
+app.get(`${BASE_PATH}/api/admin/cas/callback`, async (req, res) => {
+  const ticket = String(req.query.ticket || "").trim();
+  if (!ticket) {
+    return error(res, "CAS 回调缺少 ticket", 400);
+  }
+
+  const redirectPath = sanitizeAdminRedirect(req.query.redirect);
+  const serviceUrl = buildCasServiceUrl(req, redirectPath);
+
+  try {
+    const username = await validateCasTicket(ticket, serviceUrl);
+    const now = Date.now();
+    setAdminSession(res, {
+      username,
+      displayName: username,
+      loginAt: now,
+      exp: now + ADMIN_SESSION_TTL_MS
+    }, req.secure);
+    return res.redirect(redirectPath);
+  } catch (err) {
+    clearAdminSession(res, req.secure);
+    return res.status(401).send(`CAS 登录失败：${err.message || "请稍后重试"}`);
+  }
+});
+
+app.get(`${BASE_PATH}/api/admin/cas/logout`, (req, res) => {
+  clearAdminSession(res, req.secure);
+  const returnUrl = `${getRequestOrigin(req)}${withBasePath("/visitor")}`;
+  res.redirect(buildCasLogoutUrl(returnUrl));
+});
+
+app.use(`${BASE_PATH}/api/admin`, requireAdminApiSession);
+
+app.get(`${BASE_PATH}/api/admin/session`, (req, res) => {
+  res.json({
+    success: true,
+    session: {
+      username: req.adminSession.username,
+      displayName: req.adminSession.displayName || req.adminSession.username,
+      loginAt: req.adminSession.loginAt,
+      expiresAt: req.adminSession.exp
+    }
+  });
 });
 
 app.get(`${BASE_PATH}/api/admin/notice`, (_req, res) => {

@@ -4,6 +4,7 @@
 - 前台访客端：动态表单（文本、数字、选择、文件）、必填校验、提交申请
 - 后台管理员端：字段配置、申请列表、审批（通过/驳回）、日历视图（已预约高亮与单位名称）
 - 后端与数据库：Express + SQLite，文件本地存储
+- 管理端已接入 CAS 认证，登录入口为 `https://authserver.nju.edu.cn/authserver/login`，登出入口为 `https://authserver.nju.edu.cn/authserver/logout`
 
 ## 启动
 
