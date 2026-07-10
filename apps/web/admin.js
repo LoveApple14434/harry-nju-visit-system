@@ -553,7 +553,7 @@ async function loadApplications(page = listState.page) {
     const statusText = item.status === "approved" ? "已通过" : item.status === "rejected" ? "已驳回" : "待审批";
     const content = Object.entries(item.data)
       .map(([k, v]) => {
-        return `${k}: ${renderDataValue(v)}`;
+        return `${escapeHtml(k)}: ${renderDataValue(v)}`;
       })
       .join("<br />");
 

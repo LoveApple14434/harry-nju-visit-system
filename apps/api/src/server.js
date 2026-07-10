@@ -854,7 +854,7 @@ app.post(`${BASE_PATH}/api/admin/fields`, (req, res) => {
          WHERE id = ?`
       )
       .run(
-        body.label.trim(),
+        sanitizeText(body.label),
         body.type,
         body.required ? 1 : 0,
         buildFieldOptionsJson(body),
@@ -876,7 +876,7 @@ app.post(`${BASE_PATH}/api/admin/fields`, (req, res) => {
       )
       .run(
         body.key,
-        body.label.trim(),
+        sanitizeText(body.label),
         body.type,
         body.required ? 1 : 0,
         buildFieldOptionsJson(body),
@@ -921,7 +921,7 @@ app.put(`${BASE_PATH}/api/admin/fields/:id`, (req, res) => {
     )
     .run(
       body.key,
-      body.label.trim(),
+      sanitizeText(body.label),
       body.type,
       body.required ? 1 : 0,
       buildFieldOptionsJson(body),
