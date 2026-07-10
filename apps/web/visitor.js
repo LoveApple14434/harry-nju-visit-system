@@ -25,6 +25,12 @@ const uploads = {};
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function setMsg(text, ok = false) {
   msgEl.className = ok ? "ok" : "error";
   msgEl.textContent = text;
@@ -185,10 +191,10 @@ function renderFields() {
           const row = document.createElement("div");
           row.className = "file-upload-item";
           row.innerHTML = `
-            <span class="name">${item.name} (${formatSize(item.size)})</span>
+            <span class="name">${escapeHtml(item.name)} (${formatSize(item.size)})</span>
             <span class="actions">
-              <button type="button" class="secondary" data-replace="${item.tempId}">替换</button>
-              <button type="button" class="danger" data-remove="${item.tempId}">删除</button>
+              <button type="button" class="secondary" data-replace="${escapeHtml(item.tempId)}">替换</button>
+              <button type="button" class="danger" data-remove="${escapeHtml(item.tempId)}">删除</button>
             </span>
           `;
           listEl.appendChild(row);

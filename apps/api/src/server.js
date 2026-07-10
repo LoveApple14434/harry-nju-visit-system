@@ -82,7 +82,8 @@ const storage = multer.diskStorage({
     cb(null, path.resolve("uploads/runtime"));
   },
   filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._-]/g, "");
+    const clean = stripHtmlTags(file.originalname);
+    const safeName = clean.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._-]/g, "");
     cb(null, `${Date.now()}_${safeName}`);
   }
 });
@@ -244,6 +245,14 @@ function extractCompanyName(values, fieldMap) {
   }
   const value = preferred.value_text ?? preferred.value_select ?? preferred.value_number;
   return value === null || value === undefined || value === "" ? "-" : String(value);
+}
+
+function stripHtmlTags(str) {
+  return String(str).replace(/<[^>]*>/g, "");
+}
+
+function sanitizeText(str) {
+  return stripHtmlTags(String(str)).trim();
 }
 
 function error(res, message, code = 400) {
@@ -623,7 +632,7 @@ app.get(`${BASE_PATH}/api/admin/notice`, (_req, res) => {
 });
 
 app.put(`${BASE_PATH}/api/admin/notice`, (req, res) => {
-  const content = String(req.body?.content || "");
+  const content = stripHtmlTags(String(req.body?.content || ""));
   const updatedAt = saveNoticeContent(content);
   res.json({ success: true, updatedAt });
 });
@@ -645,6 +654,7 @@ app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => 
     return error(res, "文件字段不存在");
   }
 
+  const originalName = stripHtmlTags(req.file.originalname);
   const tempId = `tmp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   const now = new Date().toISOString();
 
@@ -654,7 +664,7 @@ app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => 
   ).run(
     tempId,
     fieldId,
-    req.file.originalname,
+    originalName,
     req.file.filename,
     req.file.mimetype,
     req.file.size,
@@ -666,7 +676,7 @@ app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => 
     success: true,
     tempId,
     file: {
-      name: req.file.originalname,
+      name: originalName,
       size: req.file.size,
       url: withBasePath(`/uploads/runtime/${req.file.filename}`)
     }
@@ -789,9 +799,9 @@ app.post(`${BASE_PATH}/api/public/applications`, (req, res) => {
       insertValue.run({
         application_id: applicationId,
         field_id: field.id,
-        value_text: ["text", "date", "time"].includes(field.type) ? String(raw) : null,
+        value_text: ["text", "date", "time"].includes(field.type) ? sanitizeText(String(raw)) : null,
         value_number: field.type === "number" ? Number(raw) : null,
-        value_select: field.type === "select" ? String(raw) : null,
+        value_select: field.type === "select" ? sanitizeText(String(raw)) : null,
         created_at: now
       });
     }
@@ -1145,7 +1155,7 @@ app.patch(`${BASE_PATH}/api/admin/applications/:id/decision`, (req, res) => {
   }
 
   const reasonCode = String(req.body?.reasonCode || "").trim();
-  const reasonText = String(req.body?.reasonText || "").trim();
+  const reasonText = sanitizeText(String(req.body?.reasonText || ""));
   const hasPreset = reasonCode && Object.prototype.hasOwnProperty.call(REJECT_REASONS, reasonCode);
   if (!hasPreset && !reasonText) {
     return error(res, "驳回时必须填写理由或选择预设理由");

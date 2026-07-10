@@ -110,6 +110,12 @@ function formatShanghaiDateTime(value) {
   return shanghaiDateTimeFormatter.format(date);
 }
 
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function setMsg(text, ok = false) {
   msgEl.className = ok ? "ok" : "error";
   msgEl.textContent = text;
@@ -199,7 +205,7 @@ function renderOptionDraft() {
   optionDraft.forEach((opt, idx) => {
     const chip = document.createElement("span");
     chip.className = "option-chip";
-    chip.innerHTML = `<span>${opt}</span><button type="button" data-opt-del="${idx}">移除</button>`;
+    chip.innerHTML = `<span>${escapeHtml(opt)}</span><button type="button" data-opt-del="${idx}">移除</button>`;
     optionList.appendChild(chip);
   });
 
@@ -322,12 +328,12 @@ async function loadFields() {
     card.className = "admin-item-card";
     card.innerHTML = `
       <div class="admin-item-head">
-        <strong>${f.label}</strong>
+        <strong>${escapeHtml(f.label)}</strong>
         ${isFixed ? '<span class="tag">固定</span>' : ""}
       </div>
       <div class="admin-meta-grid">
-        <div><span class="k">key</span><span class="v">${f.key}</span></div>
-        <div><span class="k">类型</span><span class="v">${f.type}</span></div>
+        <div><span class="k">key</span><span class="v">${escapeHtml(f.key)}</span></div>
+        <div><span class="k">类型</span><span class="v">${escapeHtml(f.type)}</span></div>
         <div><span class="k">必填</span><span class="v">${f.required ? "是" : "否"}</span></div>
       </div>
       <div class="actions" style="margin-top: 10px">
@@ -514,29 +520,31 @@ async function loadApplications(page = listState.page) {
       const parts = value.map((item) => {
         if (item && typeof item === "object") {
           const rawLink = item.url || item.path;
-          const name = item.name || item.original_name || "附件";
+          const name = escapeHtml(item.name || item.original_name || "附件");
           if (rawLink) {
             const link = rawLink.startsWith("/uploads/") ? `${BASE_PATH}${rawLink}` : rawLink;
-            return `<a href="${link}" target="_blank">${name}</a>`;
+            const linkSafe = escapeHtml(link);
+            return `<a href="${linkSafe}" target="_blank">${name}</a>`;
           }
           return name;
         }
-        return String(item);
+        return escapeHtml(String(item));
       });
       return parts.join("、");
     }
 
     if (value && typeof value === "object") {
       const rawLink = value.url || value.path;
-      const name = value.name || value.original_name || "附件";
+      const name = escapeHtml(value.name || value.original_name || "附件");
       if (rawLink) {
         const link = rawLink.startsWith("/uploads/") ? `${BASE_PATH}${rawLink}` : rawLink;
-        return `<a href="${link}" target="_blank">${name}</a>`;
+        const linkSafe = escapeHtml(link);
+        return `<a href="${linkSafe}" target="_blank">${name}</a>`;
       }
       return name;
     }
 
-    return String(value);
+    return escapeHtml(String(value));
   };
 
   data.items.forEach((item) => {
@@ -662,13 +670,13 @@ function renderCalendar(month, byDay) {
       <div class="badge">总申请 ${dayInfo.totalCount}</div>
       <div class="badge">已预约 ${dayInfo.approvedCount}</div>
       <div class="badge">待审批 ${dayInfo.pendingCount}</div>
-      <div class="companies">${companyPreview || ""}</div>
+      <div class="companies">${escapeHtml(companyPreview || "")}</div>
     `;
     cell.addEventListener("click", async () => {
       if (dayInfo.approvedCount > 0 || dayInfo.pendingCount > 0) {
         calendarDetailsBody.innerHTML = `
-          <div><strong>${date}</strong> 已预约 ${dayInfo.approvedCount} 条，待审批 ${dayInfo.pendingCount} 条</div>
-          <div style="margin-top:6px">单位：${dayInfo.companies.join("、") || "-"}</div>
+          <div><strong>${escapeHtml(date)}</strong> 已预约 ${dayInfo.approvedCount} 条，待审批 ${dayInfo.pendingCount} 条</div>
+          <div style="margin-top:6px">单位：${escapeHtml(dayInfo.companies.join("、") || "-")}</div>
         `;
       } else {
         calendarDetailsBody.innerHTML = `<div><strong>${date}</strong> 暂无已预约记录</div>`;

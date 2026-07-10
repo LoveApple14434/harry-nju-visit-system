@@ -40,6 +40,12 @@ function statusClass(status) {
   return "status-pending";
 }
 
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function setMsg(text, ok = false) {
   queryMsgEl.className = ok ? "ok" : "error";
   queryMsgEl.textContent = text;
@@ -93,13 +99,13 @@ function renderRows(items) {
 
     tr.innerHTML = `
       <td>#${item.id}</td>
-      <td>${item.visitorName || "-"}</td>
-      <td>${item.visitDate || "-"}</td>
-      <td>${item.companyName || "-"}</td>
-      <td><span class="status-pill ${statusClass(item.status)}">${statusText}</span></td>
-      <td>${formatTime(item.createdAt)}</td>
-      <td>${formatTime(item.decisionAt)}</td>
-      <td>${note}</td>
+      <td>${escapeHtml(item.visitorName || "-")}</td>
+      <td>${escapeHtml(item.visitDate || "-")}</td>
+      <td>${escapeHtml(item.companyName || "-")}</td>
+      <td><span class="status-pill ${statusClass(item.status)}">${escapeHtml(statusText)}</span></td>
+      <td>${escapeHtml(formatTime(item.createdAt))}</td>
+      <td>${escapeHtml(formatTime(item.decisionAt))}</td>
+      <td>${escapeHtml(note)}</td>
     `;
 
     resultRowsEl.appendChild(tr);
