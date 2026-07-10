@@ -106,7 +106,7 @@ async function loadVersion() {
   }
   try {
     const data = await requestJson(`${BASE_PATH}/api/public/version`, undefined, "加载版本失败");
-    debugVersionEl.textContent = `版本: v${data.version} | 路径: ${data.basePath}`;
+    debugVersionEl.textContent = `版本: v${data.version} | Developed by LoveApple14434`;
   } catch (_e) {
     debugVersionEl.textContent = "版本: 获取失败";
   }
