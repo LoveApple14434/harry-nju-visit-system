@@ -1,9 +1,11 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import multer from "multer";
+import sharp from "sharp";
 import dayjs from "dayjs";
 import db, { initDb } from "./db.js";
 import { ALLOWED_MIME, FIELD_TYPES, MAX_FILE_SIZE } from "./constants.js";
@@ -74,6 +76,23 @@ const REJECT_REASONS = {
 initDb();
 
 app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+      baseUri: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
 app.set("trust proxy", true);
 app.use(express.json({ limit: "2mb" }));
 
@@ -291,6 +310,17 @@ function validateFileMagic(filepath, allowedMimes) {
     return false;
   } catch {
     return false;
+  }
+}
+
+/** 对图片进行二次重渲染，剥离 EXIF 等嵌入数据，防止隐式代码注入 */
+async function rerenderImage(filepath, mimeType) {
+  if (mimeType === "image/jpeg") {
+    const buf = await sharp(filepath).jpeg().toBuffer();
+    fs.writeFileSync(filepath, buf);
+  } else if (mimeType === "image/png") {
+    const buf = await sharp(filepath).png().toBuffer();
+    fs.writeFileSync(filepath, buf);
   }
 }
 
@@ -681,7 +711,7 @@ app.put(`${BASE_PATH}/api/admin/notice`, (req, res) => {
   res.json({ success: true, updatedAt });
 });
 
-app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => {
+app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), async (req, res) => {
   const fieldId = Number(req.body.fieldId);
   if (!fieldId || Number.isNaN(fieldId)) {
     if (req.file && fs.existsSync(req.file.path)) {
@@ -704,6 +734,16 @@ app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => 
       fs.unlinkSync(req.file.path);
     }
     return error(res, "文件内容与允许的文件类型不匹配");
+  }
+
+  // 对图片进行二次重渲染，剥离嵌入数据（EXIF 等）
+  try {
+    await rerenderImage(req.file.path, req.file.mimetype);
+  } catch {
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    return error(res, "图片重渲染失败，文件可能已损坏");
   }
 
   const originalName = stripHtmlTags(req.file.originalname);
