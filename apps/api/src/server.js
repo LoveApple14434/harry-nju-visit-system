@@ -84,7 +84,8 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => {
     const clean = stripHtmlTags(file.originalname);
     const safeName = clean.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._-]/g, "");
-    cb(null, `${Date.now()}_${safeName}`);
+    const noDangerExt = sanitizeFileExtension(safeName);
+    cb(null, `${Date.now()}_${noDangerExt}`);
   }
 });
 
@@ -253,6 +254,44 @@ function stripHtmlTags(str) {
 
 function sanitizeText(str) {
   return stripHtmlTags(String(str)).trim();
+}
+
+/** 剥离上传文件名中的危险扩展名，防止浏览器将其解析为可执行内容 */
+const DANGEROUS_EXTENSIONS = /\.(html?|s?htm|xhtml|js|mjs|wasm|php|phtml|php[3-7]|asp|aspx|jsp|rb|py|cgi|pl|sh|bash|svg|xml|xsl|xslt)$/i;
+function sanitizeFileExtension(filename) {
+  return String(filename).replace(DANGEROUS_EXTENSIONS, ".bin");
+}
+
+/** 通过魔数检测文件内容是否确实属于允许的 MIME 类型 */
+const MAGIC_BYTES = {
+  "image/jpeg": [
+    [0xFF, 0xD8, 0xFF]
+  ],
+  "image/png": [
+    [0x89, 0x50, 0x4E, 0x47]
+  ],
+  "application/pdf": [
+    [0x25, 0x50, 0x44, 0x46]
+  ]
+};
+function validateFileMagic(filepath, allowedMimes) {
+  try {
+    const fd = fs.openSync(filepath, "r");
+    const buf = Buffer.alloc(8);
+    const bytesRead = fs.readSync(fd, buf, 0, 8, 0);
+    fs.closeSync(fd);
+    if (bytesRead < 2) return false;
+    for (const mime of allowedMimes) {
+      const signatures = MAGIC_BYTES[mime];
+      if (!signatures) continue;
+      for (const sig of signatures) {
+        if (sig.every((byte, i) => buf[i] === byte)) return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function error(res, message, code = 400) {
@@ -499,7 +538,12 @@ app.get(`${BASE_PATH}/query`, (_req, res) => {
   res.sendFile(path.resolve("apps/web/query.html"));
 });
 
-app.use(`${BASE_PATH}/uploads`, express.static(path.resolve("uploads")));
+// 上传文件通过自定义中间件提供，强制下载并禁用 MIME 嗅探
+app.use(`${BASE_PATH}/uploads`, (req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Disposition", "attachment");
+  next();
+}, express.static(path.resolve("uploads")));
 app.use(`${BASE_PATH}/img`, express.static(path.resolve("apps/img")));
 app.use(BASE_PATH || "/", express.static(path.resolve("apps/web")));
 
@@ -652,6 +696,14 @@ app.post(`${BASE_PATH}/api/public/upload`, upload.single("file"), (req, res) => 
       fs.unlinkSync(req.file.path);
     }
     return error(res, "文件字段不存在");
+  }
+
+  // 验证文件内容魔数，防止 MIME 类型伪造
+  if (!validateFileMagic(req.file.path, ALLOWED_MIME)) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    return error(res, "文件内容与允许的文件类型不匹配");
   }
 
   const originalName = stripHtmlTags(req.file.originalname);
